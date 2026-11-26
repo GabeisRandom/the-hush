@@ -1,0 +1,101 @@
+'use strict';
+// Chapter 4's finale in German (FINTXT.add): names, lines, the gifts and the bridges with their graders, the slip («Glocken» →
+// «Glucken»: he thanks the bells, and thanks the broody hens), the old dad's block, Elio's and Noa's lines afterwards, the credits.
+// German's past in speech is the Perfekt; a Präteritum there is an A (TIME.md §8), and so is the present for the future with «morgen».
+(() => {
+  if (typeof FINTXT === 'undefined') return;
+  FINTXT.add('de', {
+    CAST: { elio: 'Elio', noa: 'Noa', aurora: 'Aurora', felix: 'Félix', rosita: 'Rosi', rosa: 'Oma Rosa', dadThen: 'Elios Papa', ramiro: 'Ramiro', tadeo: 'Tadeo', sami: 'Sami', bruno: 'Bruno', marta: 'Marta', lucero: 'Lucero' },
+    DAD: {
+      name: 'Elios Papa',
+      lines: {
+        'dad.stand': '…Elio?',
+        'dad.heard': 'Ich habe dich gehört, mein Sohn. Diesmal habe ich dich gehört.',
+        'elio.dad': 'Papa… ich bin hier.',
+        'dad.laugh': 'Ha! Glucken! Die nehme ich, mein Sohn. Die nehme ich.',
+      },
+      post: ['Jeden Nachmittag sitze ich hier und höre ihm beim Proben zu.', 'Ich habe ihn auf allen Wegen gesucht. Jetzt findet er mich, jeden Morgen, mit Brot.', 'Mein Sohn hat eine schöne Stimme. Ich hatte sie fast vergessen.'],
+    },
+    LINES: {
+      'noa.top': 'Du bist zurück! Er hat die Risse auch gehört, wie ich. Gib ihm seine Worte.',
+      'hood.name': '…Elio? Seit Jahren hat niemand meinen Namen gesagt.',
+      'elio.voice': 'Meine Stimme… Das ist meine Stimme.',
+      'noa.free': 'Endlich! Elio, wir haben dich überall gesucht. In allen Zeiten.',
+      'elio.book': 'Das gehört dir. Entschuldige, dass ich es so lange behalten habe.',
+      'noa.book': 'Du hast gut darauf aufgepasst. Und auch auf die Worte darin.',
+      'elio.clock1': 'Vor vierzig Jahren, um acht Uhr, ist meine Rede mittendrin stehen geblieben. Im Theater.',
+      'noa.clock': 'Dann bringen wir sie zu Ende. Um acht.',
+      'elio.clock2': 'Diesmal laufe ich nicht vor dem Gestern weg. Ich nehme es mit… und das Morgen auch.',
+      'bruno.clock': 'Dann erste Reihe. Das lasse ich mir nicht entgehen.',
+      'elio.hands': 'Meine Hände zittern.',
+      'noa.wings': 'Das ist normal. Wenn du etwas vergisst, schau nach unten, zum Souffleurkasten: Von dort sagt man dir den Satz vor.',
+      'elio.cap': 'Meine Mütze… Sie lag die ganze Zeit hier.',
+      'aurora.hush': 'Ruhe, bitte! Jede Stimme zählt!',
+      'elio.open': 'Guten Abend. Vor langer Zeit habe ich auf dieser Bühne eine Rede angefangen… und nie beendet. Heute Abend will ich sie beenden.',
+      'elio.later': 'Nein… das war später.',
+      'elio.notyet': 'Nein… das ist noch nicht passiert.',
+      'elio.today': 'Mein Papa ist hier. Rosa ist hier. Und jemand, den ich nicht kannte… hat mir meine Worte gebracht.',
+      'elio.tomorrow': 'Und morgen… Über das Morgen habe ich noch ein paar Dinge zu sagen.',
+      'rosa.letter': 'Dieser Brief gehört dir, Elio. Ich habe ihn in jener Nacht geschrieben, mit der Laterne in der Hand. Er hat vierzig Jahre in einer Schublade gewartet.',
+      'elio.letter': '«An dem Abend warst du sehr mutig. Ich habe nicht gelacht.»',
+      'elio.letter2': 'Und hier hat jemand geschrieben: «{you}»',
+      'elio.rosa': 'Danke, Rosa. Du hast mich immer gesucht.',
+      'ramiro.sorry': 'Elio… In jener Nacht habe ich über den Frosch gelacht. Nicht über dich.',
+      'elio.note': 'Ich weiß. Ich habe deinen Zettel gelesen… viele Male, dort oben.',
+      'elio.nonote': 'Jetzt weiß ich es. Danke, dass du es mir sagst.',
+      'noa.you1': 'Du hast es geschafft. Na ja… wir haben es geschafft.',
+      'noa.you2': 'Danke, dass du mich suchen gekommen bist. Ich habe alle deine Briefe aufgehoben.',
+      'aurora.bye': 'Jede Stimme zählt… auch seine! Leb wohl, Elio!',
+      'sami.bye': 'Morgen rede ich mit allen!',
+      'rosita.bye': 'Ich wusste, dass du zurückkommst!',
+    },
+    SLIP: { right: 'Danke, ihr Glocken!', slip: 'Und… danke, ihr Glucken!', joke: 'Glucken! Brütende Hühner… Vierzig Jahre später, immer noch Glucken!', en: 'And… thank you, broody hens! («Glocken» are bells; «Glucken» are broody hens)', jokeEn: 'Broody hens! Forty years later, still broody hens!', rightEn: 'Thank you, bells!', mimo: '🐔?', giggle: 'hihi!', laughs: ['haha!', 'hahaha!', 'hihi!', 'Glucken!'] },
+    TIPS: {
+      person: 'Give it back to HIM: say it to him (du). «{form}»', personB: 'Say it as Elio says it (ich): «{form}»',
+      tense: 'That’s the other past. «{form}»', habit: 'Year after year, told as a story: the Präteritum. «{form}»',
+      before: 'It had happened BEFORE that night: the Plusquamperfekt («war … passiert»). «{form}»', thought: 'Inside a past thought, «would»: «würde». «{form}»',
+      mood: 'A wish: «hoffentlich» + the present: «{form}»', whatif: 'A what-if: «wenn … würde», then «würdet». «{form}»',
+      real: 'It isn’t a what-if anymore: it’s happening NOW! «{form}»', past: 'That’s yesterday! «{form}»', pres: 'That’s now. It already happened: «{form}»',
+      presT: 'That’s today. Tomorrow needs tomorrow’s words: «{form}»', fut: 'That’s tomorrow! «{form}»', futNow: 'That’s tomorrow. He’s here TODAY: «{form}»',
+      pastNow: 'That’s yesterday. He’s here TODAY: «{form}»', wishFut: 'A wish, not a prediction: «{form}»', condFut: 'Close! A what-if needs «würde»: «{form}»',
+    },
+    TASKS: {
+      g1: { frame: 'Es schneite, du hast dich ___ … und jemand hat dich ___.', chips: [['verlaufen', 'got lost'], ['gefunden', 'found']], model: 'Es schneite, du hast dich verlaufen … und jemand hat dich gefunden.',
+        want: [['hast dich verlaufen', 'hat dich gefunden']], alt: [['hast dich verirrt', 'hat dich gefunden'], ['verliefst dich', 'fand dich']], person: [['habe mich verlaufen'], ['hat mich gefunden']], pres: [['verläufst dich'], ['findet dich']], fut: [['wirst dich verlaufen']] },
+      g2: { frame: 'Diesmal wirst du mit uns ___.', chips: [['singen', 'sing']], model: 'Diesmal wirst du mit uns singen.',
+        want: [['wirst', 'singen']], alt: [['singst du mit uns']], person: [['werde ich']], past: [['hast', 'gesungen'], ['sangst']] },
+      g3: { frame: 'Wenn wieder jemand lachen würde, ___ du einfach mitlachen … und weiterreden.', chips: [['würdest', 'would']], model: 'Wenn wieder jemand lachen würde, würdest du einfach mitlachen … und weiterreden.',
+        want: [['würdest du', 'mitlachen']], alt: [['würdest', 'lachen']], person: [['würde ich']], mood: [['wirst du']], pres: [['lachst du mit']] },
+      b1: { frame: 'An jenem Abend habe ich ein Wort falsch ___, und alle haben ___.', chips: [['gesagt', 'said'], ['gelacht', 'laughed']], model: 'An jenem Abend habe ich ein Wort falsch gesagt, und alle haben gelacht.',
+        want: [['gesagt', 'gelacht']], alt: [['sagte', 'lachten']], pres: [['sage'], ['lachen alle']], fut: [['werde', 'sagen']] },
+      b2: { frame: 'Jahrelang ___ ich mit niemandem, aber ich ___ allen zu.', chips: [['sprach', 'spoke'], ['hörte', 'listened']], model: 'Jahrelang sprach ich mit niemandem, aber ich hörte allen zu.',
+        want: [['sprach', 'hörte']], alt: [['gesprochen', 'zugehört'], ['redete', 'hörte']], pres: [['spreche'], ['höre']], fut: [['werde', 'sprechen']] },
+      b3: { frame: 'Es war mir schon einmal ___ … und ich dachte, es ___ immer passieren.', chips: [['passiert', 'happened'], ['würde', 'would']], model: 'Es war mir schon einmal passiert … und ich dachte, es würde immer passieren.',
+        want: [['war', 'passiert', 'würde']], alt: [['war', 'geschehen', 'würde']], tense: [['ist mir', 'passiert'], ['passierte mir']], mood: [['wird immer passieren']], pres: [['es passiert mir']] },
+      b4: { frame: 'Aber heute ___ ich hier, und ihr ___ mir zu.', chips: [['bin', 'am'], ['hört', 'listen']], model: 'Aber heute bin ich hier, und ihr hört mir zu.',
+        want: [['bin', 'hört']], alt: [['bin', 'hören']], past: [['war hier'], ['hörtet']], fut: [['werde', 'sein']] },
+      b5: { frame: 'Morgen ___ ich an jeden Ort zurückkehren.', chips: [['werde', 'I’ll']], model: 'Morgen werde ich an jeden Ort zurückkehren.',
+        want: [['werde', 'zurückkehren']], alt: [['kehre', 'zurück']], person: [['wird', 'zurückkehren']], past: [['kehrte', 'zurück'], ['bin', 'zurückgekehrt']] },
+      b6: { frame: 'Hoffentlich ___ niemand mehr still.', chips: [['bleibt', 'stays']], model: 'Hoffentlich bleibt niemand mehr still.',
+        want: ['bleibt'], alt: [['wird', 'bleiben']], past: ['blieb'] },
+      b7: { frame: 'Und wenn meine Stimme zittern ___, ___ ihr auf mich warten.', chips: [['würde', 'would'], ['würdet', 'would']], model: 'Und wenn meine Stimme zittern würde, würdet ihr auf mich warten.',
+        want: [['zittern würde', 'würdet']], alt: [['zitterte', 'würdet']], mood: [['zittert', 'werdet'], ['zittert', 'wartet']], past: [['zitterte', 'habt']] },
+      b8: { frame: 'Jemand lacht … und ich ___ mit euch! Und ich ___ weiter.', chips: [['lache', 'laugh'], ['rede', 'keep talking']], model: 'Jemand lacht … und ich lache mit euch! Und ich rede weiter.',
+        want: [['lache', 'rede']], alt: [['lache', 'spreche']], mood: [['würde', 'lachen'], ['würde', 'weiterreden']], past: [['lachte'], ['redete']], fut: [['werde', 'lachen']] },
+    },
+    POST: {
+      elio: ['Heute Morgen habe ich die Bühne gefegt. Morgen werde ich die Türen streichen.', 'Wenn du irgendwann auf die Bühne willst, sag mir Bescheid. Wir hören dir zu.', 'Als Kind habe ich mich versteckt. Jetzt rede ich jeden Nachmittag mit jemand Neuem.',
+        'Ich hatte vergessen, wie mein Lachen klingt. Ziemlich laut, oder?', 'Ich würde so gern hören, wie Noa von ihren Reisen erzählt. Sie hat tausend Geschichten.', 'Hoffentlich bleibt in diesem Tal nie wieder jemand still.'],
+      noa: ['Wohin gehen wir jetzt? Es gibt so viele Orte… in drei Zeiten.', 'Mein Notizbuch ist voll von deinen Wörtern. Ich brauche ein neues.', 'Wenn ich nicht auf diesen Turm gestiegen wäre, hätte ich Elio nie kennengelernt. Komisch, oder?', 'Alle Risse sind noch offen. Das Gestern und das Morgen warten auf dich.'],
+    },
+    CREDITS: { thanks: 'Danke fürs Spielen.', motto: 'Jede Stimme zählt.', end: 'Ende' },
+  });
+  // each box's rung (the grammar it practices), named the way German names it
+  const R = (o) => Object.fromEntries(Object.entries(o).map(([k, rung]) => [k, { rung }]));
+  FINTXT.add('de', { TASKS: R({
+    g1: 'the Perfekt: what happened (to him)', g2: 'the future: werden + infinitive', g3: '«wenn» … «würde»: a what-if',
+    b1: 'the Perfekt: what happened', b2: 'the Präteritum: how it was, year after year', b3: 'the Plusquamperfekt, and «würde» inside a past thought',
+    b4: 'the present: here, today', b5: 'the future: werden + infinitive', b6: 'a wish: «hoffentlich»',
+    b7: 'a what-if: «wenn» … «würde»', b8: 'the what-if come true: the present',
+  }) });
+})();

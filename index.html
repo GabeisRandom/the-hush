@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Hush</title>
+<link rel="icon" href="icon.ico">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#2b2235">
+<meta name="description" content="The Hush: a language-learning RPG where you talk your way through, in Spanish, Portuguese, German, Chinese or Japanese.">
+<style>
+  :root { --ink: #2b2235; --paper: #fffaf0; --teal: #21a493; --red: #c2412f; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe4f4; color: var(--ink); font-family: "Segoe UI", system-ui, sans-serif; }
+  #gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; outline: none; touch-action: none; transition: filter .4s; }
+  button { font: inherit; cursor: pointer; color: inherit; }
+  .hidden { display: none !important; }
+  #hushfx { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(160,160,180,0) 45%, rgba(70,68,90,0.55) 100%); }
+  /* HUD */
+  #objective { position: fixed; top: 14px; left: 14px; z-index: 5; max-width: 380px; font-size: 14px; font-weight: 700; background: rgba(255,250,240,.92);
+    padding: 7px 12px 7px 32px; border-radius: 12px; box-shadow: 0 3px 0 rgba(43,34,53,.18); opacity: 0; transition: opacity .4s; }
+  #objective.on { opacity: 1; }
+  #objective::before { content: "★"; position: absolute; left: 11px; color: #e6a92e; }
+  #objective.side::before { content: "◆"; color: var(--teal); }
+  #objective .keys { display: block; margin-top: 3px; font-size: 11px; font-weight: 600; opacity: .6; }
+  #objective kbd, .quest kbd { font: 700 10px "Segoe UI", sans-serif; border: 1.5px solid var(--ink); border-radius: 4px; padding: 0 3px; background: #fff; }
+  .gl { font: italic 600 .72em "Segoe UI", sans-serif; opacity: .6; margin-left: 3px; color: var(--ink); }
+  /* the compass */
+  #compass { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; width: min(420px, 46vw); height: 30px; border-radius: 99px; background: rgba(255,250,240,.9);
+    box-shadow: 0 3px 0 rgba(43,34,53,.18); overflow: hidden; opacity: 0; transition: opacity .4s; pointer-events: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+  #compass.on { opacity: 1; }
+  #compass::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: rgba(43,34,53,.25); }
+  #compass .d { position: absolute; top: 6px; transform: translateX(-50%); font: 800 13px Bahnschrift, "Segoe UI", sans-serif; opacity: .5; }
+  #compass .d.minor { font-size: 9px; top: 9px; opacity: .3; }
+  #compass .d.n { color: var(--red); opacity: .85; }
+  #compass .m { position: absolute; top: 2px; transform: translateX(-50%); font: 800 18px "Segoe UI Symbol", "Segoe UI", sans-serif; line-height: 26px; white-space: nowrap; opacity: .45; }
+  #compass .m.main { color: #e6a92e; } #compass .m.side { color: var(--teal); }
+  #compass .m.tracked { opacity: 1; text-shadow: 0 1px 0 rgba(43,34,53,.35); }
+  #compass .m.here { animation: bob .6s ease-in-out infinite; }
+  #compass .m small { font: 800 10px "Segoe UI", sans-serif; color: var(--ink); margin-left: 2px; vertical-align: 2px; }
+  #counters { position: fixed; top: 14px; right: 14px; z-index: 5; display: flex; gap: 8px; }
+  .chip { font-size: 13px; font-weight: 800; background: rgba(255,250,240,.92); padding: 6px 10px; border-radius: 99px; box-shadow: 0 3px 0 rgba(43,34,53,.18); }
+  .chip button { border: 0; background: none; font-weight: 800; padding: 0; }
+  #help { position: fixed; bottom: 12px; left: 12px; z-index: 5; font-size: 12px; line-height: 1.6; background: rgba(255,250,240,.85); padding: 6px 10px; border-radius: 10px; }
+  #help kbd { font: 700 11px "Segoe UI", sans-serif; border: 1.5px solid var(--ink); border-radius: 5px; padding: 0 4px; background: #fff; }
+  /* bubbles */
+  .bubble { position: fixed; z-index: 6; transform: translate(-50%, -100%); max-width: 400px; min-width: 120px; padding: 10px 16px 12px; font-size: 20px; line-height: 1.35;
+    background: #fff; border-radius: 20px; box-shadow: 0 5px 0 rgba(43,34,53,.16); opacity: 0; transition: opacity .15s; pointer-events: none; margin-top: -14px; }
+  .bubble.on { opacity: 1; pointer-events: auto; }
+  .bubble::after { content: ""; position: absolute; left: 50%; bottom: -12px; margin-left: -10px; border: 12px solid transparent; border-bottom: 0; border-top-color: #fff; }
+  .bubble .who { font-size: 12px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #8a4f80; display: flex; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
+  .bubble .tools { display: flex; gap: 4px; }
+  .bubble .tools button { font-size: 11px; font-weight: 800; border: 1.5px solid var(--ink); border-radius: 8px; background: transparent; padding: 1px 6px; }
+  .w { color: #d6453a; font-weight: 800; border-bottom: 2px dotted #d6453a; position: relative; cursor: help; }
+  .w:hover::after { content: attr(data-en); position: absolute; left: 50%; bottom: 130%; transform: translateX(-50%); background: var(--ink); color: var(--paper); font: 600 13px "Segoe UI", sans-serif; padding: 3px 8px; border-radius: 8px; white-space: nowrap; z-index: 3; }
+  .bubble .en { font-size: 14px; font-style: italic; opacity: .7; margin-top: 4px; }
+  .bubble .more { text-align: right; font-size: 12px; font-weight: 800; opacity: .55; animation: bob .8s ease-in-out infinite; }
+  .bubble.docked::after { display: none; }   /* (docked at the bottom while the speaker is off screen: no tail) */
+  .bubble.mimo { font-size: 22px; font-weight: 800; min-width: 0; padding: 6px 14px; color: #13786b; border-radius: 99px; }
+  .bubble.you { background: #fffaf0; font-size: 18px; } .bubble.you::after { border-top-color: #fffaf0; } .bubble.you .who { color: #2a7f74; }
+  /* the hushed: drained of color, flat and halting */
+  .bubble.hushed { background: #e4e2e8; color: #66636f; filter: saturate(0); } .bubble.hushed::after { border-top-color: #e4e2e8; }
+  .bubble.hushed .line { letter-spacing: .05em; font-style: italic; } .bubble.hushed .who { color: #7d7a86; }
+  #thought { position: fixed; z-index: 6; transform: translate(-50%, -100%); max-width: 360px; font-size: 15px; font-style: italic; color: #4a4560; background: rgba(255,255,255,.88);
+    padding: 7px 13px; border-radius: 16px; border: 2px dashed rgba(43,34,53,.25); opacity: 0; transition: opacity .3s; pointer-events: none; margin-top: -10px; }
+  #thought.on { opacity: 1; }
+  @keyframes bob { 50% { transform: translateY(-3px); } }
+  .prompt { position: fixed; z-index: 6; transform: translate(-50%, -100%); font-size: 14px; font-weight: 700; background: var(--ink); color: var(--paper); padding: 4px 10px 4px 5px;
+    border-radius: 99px; opacity: 0; transition: opacity .15s; pointer-events: none; animation: bob 1s ease-in-out infinite; }
+  .prompt.on { opacity: 1; }
+  .prompt kbd { font: 800 13px "Segoe UI", sans-serif; background: var(--paper); color: var(--ink); border-radius: 99px; padding: 0 7px; margin-right: 4px; }
+  /* panels: teach box, naming, cards */
+  .panel { position: fixed; z-index: 8; left: 50%; bottom: 28px; transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); background: var(--paper); border: 3px solid var(--ink);
+    border-radius: 18px; box-shadow: 0 0 0 6px #fff, 0 12px 0 5px rgba(43,34,53,.18); padding: 14px 16px 12px; display: grid; grid-template-columns: 96px 1fr; gap: 6px 14px; align-items: center; }
+  .panel.shake { animation: shake .35s; }
+  @keyframes shake { 20% { transform: translateX(calc(-50% - 9px)); } 45% { transform: translateX(calc(-50% + 8px)); } 70% { transform: translateX(calc(-50% - 5px)); } }
+  #teach-pic, #command-pic { grid-row: span 4; background: #fff; border-radius: 14px; border: 2px dashed rgba(43,34,53,.3); }
+  /* "tell Mimo": the verbs Mimo knows, as little chips */
+  .vchip { display: inline-block; font: 800 14px Bahnschrift, "Segoe UI", sans-serif; color: var(--red); background: #fff; border: 2px solid var(--ink); border-radius: 99px; padding: 0 8px; margin: 2px 2px 0 0; }
+  .learnword { display: none; align-items: baseline; gap: 10px; }
+  .panel.learn .learnword { display: flex; }
+  .learnword b { font: 800 30px Bahnschrift, "Segoe UI", sans-serif; color: var(--red); }
+  .learnword span { font-size: 15px; font-style: italic; opacity: .7; }
+  .learnword button { border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-size: 13px; padding: 1px 7px; }
+  .panel.learn #teach-hintbtn, .panel.learn #teach-idk { display: none; }
+  .panel.learn #teach-input::placeholder { color: rgba(214,69,58,.45); font-weight: 700; }
+  .ptitle { font-weight: 800; font-size: 16px; }
+  .hint { font-size: 14px; opacity: .7; min-height: 20px; }
+  .hint.given { font: 800 20px Consolas, monospace; letter-spacing: .1em; opacity: 1; color: var(--red); }
+  .panel form { display: flex; gap: 8px; }
+  .panel input { flex: 1; min-width: 0; font: 600 20px "Segoe UI", sans-serif; padding: 6px 10px; border: 2.5px solid var(--ink); border-radius: 10px; outline: none; }
+  .panel input:focus { box-shadow: 0 0 0 3px rgba(33,164,147,.35); }
+  .panel form button, .prow button { border: 2.5px solid var(--ink); border-radius: 10px; background: var(--ink); color: var(--paper); font-weight: 800; padding: 6px 14px; }
+  .prow { grid-column: 2; display: flex; gap: 8px; }
+  .prow button { background: transparent; color: var(--ink); font-size: 12px; padding: 3px 9px; border-width: 2px; }
+  #ask { grid-template-columns: 1fr; }
+  /* a little pick-one menu (UI.choose): Bruno's training, and anywhere else a choice is needed */
+  #choose { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; z-index: 9; }
+  #choose .title { font-weight: 800; font-size: 17px; margin-bottom: 4px; }
+  #choose button { display: flex; align-items: center; gap: 10px; text-align: left; border: 2px solid rgba(43,34,53,.25); border-radius: 12px; background: #fff; padding: 7px 10px; font: 700 15px "Segoe UI", sans-serif; cursor: pointer; }
+  #choose button.on, #choose button:hover { border-color: var(--ink); background: #fff3c4; }
+  #choose button kbd { font: 800 12px "Segoe UI", sans-serif; border: 1.5px solid var(--ink); border-radius: 5px; padding: 0 5px; background: var(--paper); }
+  #choose button small { display: block; font-weight: 500; font-size: 12px; opacity: .65; }
+  #choose button.cancel { justify-content: center; background: transparent; border-style: dashed; font-size: 13px; }
+  .card { position: fixed; z-index: 9; left: 50%; top: 30%; transform: translate(-50%, -50%); text-align: center; background: var(--paper); border: 3px solid var(--ink); border-radius: 20px;
+    box-shadow: 0 0 0 6px #fff, 0 12px 0 5px rgba(43,34,53,.18); padding: 14px 28px 16px; animation: popin .45s cubic-bezier(.3,1.6,.5,1); max-width: min(440px, calc(100vw - 40px)); }
+  .card .big { font: 800 40px Bahnschrift, "Segoe UI", sans-serif; color: var(--red); }
+  .card .sub { font-size: 12px; opacity: .6; margin-top: 4px; }
+  .card .tag { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
+  .card.page { background: #fbf6e7; transform: translate(-50%, -50%) rotate(-1.5deg); }
+  .card .caption { font: 24px "Segoe Print", "Ink Free", cursive; margin: 6px 0; }
+  .card .row { display: flex; gap: 6px; justify-content: center; }
+  .card .row button { border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-size: 12px; font-weight: 800; padding: 2px 8px; }
+  .card .en { display: none; font-style: italic; opacity: .75; margin-top: 6px; }
+  .card .en.show { display: block; }
+  .card .note { font: 19px "Segoe Print", "Ink Free", cursive; margin: 8px 0; }
+  @keyframes popin { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } }
+  /* Noa's letters */
+  #letter { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; background: rgba(20,18,30,.25); }
+  #letter .paper { width: min(560px, calc(100vw - 40px)); max-height: 78vh; overflow: auto; background: #fbf6e7; border-radius: 6px; box-shadow: 0 18px 40px rgba(0,0,0,.35);
+    padding: 26px 34px 20px; font: 19px/1.55 "Segoe Print", "Ink Free", cursive; color: #2c2b4a; transform: rotate(-1deg);
+    background-image: repeating-linear-gradient(transparent 0 29px, rgba(70,110,170,.18) 29px 30px); animation: popin2 .5s ease-out; }
+  #letter .paper.torn { box-shadow: 0 18px 40px rgba(0,0,0,.35), inset 0 0 60px rgba(120,110,140,.25); }
+  #letter .paper p { margin: 0 0 10px; }
+  #letter .date { font: 700 12px "Segoe UI", sans-serif; letter-spacing: .1em; text-transform: uppercase; opacity: .5; margin-bottom: 6px; }
+  #letter .gl, .mini-letter .gl { font: italic 13px "Segoe UI", sans-serif; opacity: .65; margin-left: 4px; }
+  .erased { background: linear-gradient(90deg, rgba(230,226,215,.0), rgba(255,255,255,.95) 20%, rgba(255,255,255,.95) 80%, rgba(230,226,215,0)); border-radius: 6px; box-shadow: 0 0 6px 3px rgba(255,255,255,.9); }
+  #letter .next { margin-top: 14px; justify-self: center; border: 2.5px solid var(--paper); background: var(--ink); color: var(--paper); font-weight: 800; padding: 8px 18px; border-radius: 12px; }
+  @keyframes popin2 { from { transform: translateY(30px) rotate(-1deg); opacity: 0; } }
+  /* journal */
+  #journal { position: fixed; inset: 6vh 6vw; z-index: 11; background: var(--paper); border: 3px solid var(--ink); border-radius: 20px; box-shadow: 0 0 0 7px #fff, 0 16px 0 6px rgba(43,34,53,.2);
+    display: flex; flex-direction: column; overflow: hidden; }
+  #journal .tabs { display: flex; gap: 6px; padding: 12px; border-bottom: 2px dashed rgba(43,34,53,.2); }
+  #journal .tabs button { border: 2px solid var(--ink); border-radius: 10px; background: transparent; font-weight: 800; padding: 5px 12px; }
+  #journal .tabs button.on { background: var(--ink); color: var(--paper); }
+  #journal .tabs .close { margin-left: auto; }
+  #journal .body { overflow: auto; padding: 14px 18px; }
+  .words { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+  .wcard { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px; border-radius: 14px; background: #fff; border: 2px solid rgba(43,34,53,.15); }
+  .wcard.taught { border-color: var(--teal); }
+  .wcard b { font-size: 17px; } .wcard span { font-size: 12px; opacity: .7; }
+  .wcard button { border: 2px solid var(--ink); border-radius: 8px; background: transparent; font-size: 11px; font-weight: 800; padding: 1px 8px; margin: 2px 0; }
+  .wcard button[data-learn] { background: var(--teal); color: #fff; border-color: var(--teal); }
+  .dots i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--teal); margin: 0 1px; }
+  .dots i.f { background: var(--teal); }
+  .note, .empty { font-size: 13px; opacity: .7; }
+  .mini-letter { font: 15px/1.5 "Segoe Print", "Ink Free", cursive; background: #fbf6e7; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
+  .mini-page { display: flex; flex-direction: column; background: #fbf6e7; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; font: 17px "Segoe Print", "Ink Free", cursive; }
+  .mini-page span { font: italic 13px "Segoe UI", sans-serif; opacity: .7; }
+  /* Settings (a journal tab): key bindings and camera options */
+  .settings { max-width: 640px; }
+  .settings h4 { margin: 14px 0 6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; opacity: .65; }
+  .settings .krow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 10px; border-radius: 10px; background: #fff; border: 2px solid rgba(43,34,53,.1); margin-bottom: 5px; font-weight: 600; }
+  .settings .krow button { min-width: 120px; font: 800 13px "Segoe UI", sans-serif; border: 2px solid var(--ink); border-radius: 8px; background: var(--paper); padding: 3px 10px; cursor: pointer; }
+  .settings .krow button:hover { background: #fff3c4; }
+  .settings .krow button.cap { background: var(--ink); color: var(--paper); animation: kcap 0.9s ease-in-out infinite; }
+  @keyframes kcap { 50% { opacity: .55; } }
+  .settings .krow input[type=range] { width: 160px; }
+  .settings .reset { margin-top: 12px; border: 2px solid var(--ink); border-radius: 10px; background: transparent; font-weight: 800; padding: 5px 12px; cursor: pointer; }
+  /* quests */
+  .meter { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
+  .meter i { flex: 0 0 160px; height: 10px; border-radius: 99px; background: rgba(43,34,53,.12); overflow: hidden; } .meter i b { display: block; height: 100%; background: var(--red); border-radius: 99px; }
+  .meter small { flex-basis: 100%; font-weight: 400; opacity: .6; }
+  .quest { background: #fff; border: 2px solid rgba(43,34,53,.15); border-radius: 16px; padding: 12px 16px; margin-bottom: 12px; }
+  .quest.tracked { border-color: #e6a92e; box-shadow: 0 3px 0 rgba(230,169,46,.25); } .quest.side.tracked { border-color: var(--teal); box-shadow: 0 3px 0 rgba(33,164,147,.25); }
+  .quest.complete { opacity: .6; }
+  .qhead { display: flex; align-items: baseline; gap: 10px; } .qhead b { font: 800 20px Bahnschrift, "Segoe UI", sans-serif; }
+  .qkind { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .55; }
+  .qhead button { margin-left: auto; border: 2px solid var(--ink); border-radius: 10px; background: transparent; font-size: 12px; font-weight: 800; padding: 2px 10px; }
+  .qhead button.on { background: var(--ink); color: var(--paper); } .qdone { margin-left: auto; font-weight: 800; color: var(--teal); }
+  .qgiver { font-size: 12px; opacity: .6; margin-top: 2px; }
+  .qnow { font-size: 17px; font-weight: 800; margin-top: 8px; } .quest.main .qnow { color: #9a6a12; } .quest.side .qnow { color: #137267; }
+  .qwhy { font-size: 14px; margin-top: 3px; opacity: .8; }
+  .qsteps { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; opacity: .6; } .qsteps li { margin: 2px 0; }
+  .qstory { margin-top: 10px; padding-top: 8px; border-top: 2px dashed rgba(43,34,53,.15); } .qstory h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; opacity: .55; }
+  .qstory p { margin: 0 0 6px; font: 15px/1.45 "Segoe Print", "Ink Free", cursive; }
+  /* title, chapter cards, fades, toasts */
+  /* the title page (js/title.js): the logo and menu over a slow crane shot of Alba */
+  body.on-title #objective, body.on-title #counters, body.on-title #help, body.on-title #compass, body.on-title .bubble, body.on-title #thought, body.on-title .prompt { display: none !important; }
+  #title { position: fixed; inset: 0; z-index: 15; user-select: none; }
+  #title .tl-shade { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse 58% 95% at 0% 45%, rgba(255,250,240,.5), rgba(255,250,240,0) 72%), linear-gradient(0deg, rgba(43,34,53,.3), rgba(43,34,53,0) 30%); }
+  #title .tl-col { position: absolute; left: clamp(26px, 6vw, 96px); top: clamp(24px, 8vh, 84px); width: min(470px, calc(100vw - 52px)); }
+  .tl-logo { line-height: .8; }
+  .tl-logo .the { display: block; margin: 0 0 4px 10px; font: 900 34px Bahnschrift, "Segoe UI", sans-serif; letter-spacing: .32em; color: var(--teal);
+    -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; }
+  .tl-logo .hush { display: block; white-space: nowrap; font: 900 clamp(88px, 11.5vw, 156px) Bahnschrift, "Segoe UI", sans-serif; letter-spacing: .015em; transition: font-size .35s; }
+  .tl-logo .the { transition: font-size .35s, margin .35s; }
+  #title.deep .tl-logo .hush { font-size: clamp(56px, 6.6vw, 92px); }
+  #title.deep .tl-logo .the { font-size: 22px; margin-bottom: 2px; }
+  #title.deep .tl-tagline { display: none; }
+  #title.deep #tl-menu { margin-top: 22px; }
+  .tl-logo .hush b { display: inline-block; position: relative; font-weight: 900; color: var(--paper); -webkit-text-stroke: 15px var(--ink); paint-order: stroke fill;
+    text-shadow: 0 11px 0 rgba(43,34,53,.28); }
+  .tl-logo .hush b:nth-child(odd) { transform: rotate(-2deg); } .tl-logo .hush b:nth-child(even) { transform: rotate(1.5deg) translateY(4px); }
+  /* the Hush keeps taking one letter: it grays, turns into a blank bar (like the words in Noa's letters), then pops back */
+  .tl-logo .hush b.hushed { animation: hushletter 8s ease-in-out infinite; }
+  .tl-logo .hush b.hushed::after { content: ""; position: absolute; left: 12%; right: 12%; top: 42%; height: 17%; border-radius: 7px; background: #a29db1; box-shadow: 0 0 0 5px var(--ink);
+    opacity: 0; animation: hushbar 8s ease-in-out infinite; }
+  @keyframes hushletter { 0%, 58% { color: var(--paper); -webkit-text-stroke-color: var(--ink); transform: rotate(1.5deg) translateY(4px); }
+    65% { color: #c3bdd0; transform: rotate(1.5deg) translateY(6px) scale(.95); }
+    70%, 84% { color: transparent; -webkit-text-stroke-color: transparent; text-shadow: none; transform: scale(.9); }
+    89% { color: var(--paper); -webkit-text-stroke-color: var(--ink); transform: rotate(-6deg) scale(1.16); }
+    94%, 100% { color: var(--paper); transform: rotate(1.5deg) translateY(4px); } }
+  @keyframes hushbar { 0%, 65% { opacity: 0; transform: scaleX(.3); } 71%, 84% { opacity: 1; transform: none; } 88%, 100% { opacity: 0; transform: scaleX(1.25); } }
+  .tl-tagline { margin: 18px 0 0 6px; }
+  #tl-tag { display: inline-block; font: 700 17px "Segoe UI", sans-serif; background: var(--paper); border: 2.5px solid var(--ink); border-radius: 99px; padding: 4px 14px;
+    box-shadow: 0 4px 0 rgba(43,34,53,.22); transition: opacity .35s, transform .35s; }
+  #tl-tag.out { opacity: 0; transform: translateY(-4px); }
+  #tl-press { margin: 54px 0 0 8px; font: 800 24px Bahnschrift, "Segoe UI", sans-serif; letter-spacing: .04em; color: var(--paper); -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill;
+    animation: tlpulse 1.7s ease-in-out infinite; }
+  @keyframes tlpulse { 50% { opacity: .55; transform: translateY(-2px); } }
+  #tl-menu { margin-top: 30px; display: flex; flex-direction: column; gap: 10px; transition: opacity .3s; }
+  #tl-menu.picked { opacity: .55; pointer-events: none; }
+  .tl-btn { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: min(400px, 100%); text-align: left; background: var(--paper); color: var(--ink);
+    border: 3px solid var(--ink); border-radius: 16px; padding: 9px 16px 10px 42px; box-shadow: 0 5px 0 rgba(43,34,53,.25); outline: none; transition: transform .12s, background .12s; }
+  .tl-btn b { font: 800 22px Bahnschrift, "Segoe UI", sans-serif; }
+  .tl-btn small { font-size: 13px; opacity: .72; line-height: 1.3; }
+  .tl-btn::before { content: "▶"; position: absolute; left: 15px; top: 50%; margin-top: -10px; font-size: 15px; color: var(--teal); opacity: 0; }
+  .tl-btn:focus, .tl-btn:hover { background: #fff; transform: translateX(10px); }
+  .tl-btn:focus::before { opacity: 1; animation: tlnudge .7s ease-in-out infinite; }
+  @keyframes tlnudge { 50% { transform: translateX(4px); } }
+  .tl-btn.primary { background: var(--teal); color: #fff; } .tl-btn.primary:focus, .tl-btn.primary:hover { background: #26b8a5; } .tl-btn.primary::before { color: #fff; }
+  .tl-btn.danger { background: var(--red); color: #fff; } .tl-btn.danger::before { color: #fff; }
+  .tl-btn.tl-lang { flex-direction: row; align-items: center; gap: 12px; }
+  .tl-btn.tl-lang i { flex: 0 0 auto; font: 900 15px Bahnschrift, sans-serif; font-style: normal; color: #fff; border: 2.5px solid var(--ink); border-radius: 9px; padding: 4px 7px; }
+  .tl-btn.tl-lang span { display: flex; flex-direction: column; }
+  .tl-row { display: flex; gap: 10px; } .tl-row .tl-btn { width: auto; }
+  .tl-head { font: 800 24px Bahnschrift, "Segoe UI", sans-serif; color: var(--paper); -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; margin: 4px 0 -2px 4px; }
+  .tl-note { font: 700 14px "Segoe UI", sans-serif; background: rgba(255,250,240,.9); border-radius: 10px; padding: 4px 10px; align-self: flex-start; margin-left: 2px; }
+  .tl-back { align-self: flex-start; border: 2.5px solid var(--ink); border-radius: 12px; background: var(--paper); font-weight: 800; padding: 6px 14px; outline: none; margin-top: 2px; }
+  .tl-back:focus, .tl-back:hover { background: #fff; box-shadow: 0 0 0 3px var(--teal); }
+  #tl-menu #slots { width: min(520px, calc(100vw - 60px)); margin: 0; }
+  #tl-menu #slots .slot.empty { background: rgba(255,250,240,.88); }
+  #tl-menu #slots button:focus, #tl-menu #slots button:hover { outline: none; box-shadow: 0 0 0 3px var(--teal); }
+  #title .tl-foot { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; align-items: center; gap: 14px; padding: 0 18px; font-size: 12px; font-weight: 600; color: #fffaf0;
+    text-shadow: 0 1px 2px rgba(20,16,36,.7); }
+  #tl-music { border: 2px solid var(--ink); border-radius: 99px; background: var(--paper); color: var(--ink); font-weight: 800; font-size: 12px; padding: 3px 10px; text-shadow: none; }
+  #tl-music.off { opacity: .6; }
+  @media (max-height: 760px) { #tl-menu { gap: 8px; } .tl-btn { padding-top: 7px; padding-bottom: 8px; } .tl-btn b { font-size: 20px; } }
+  @media (max-height: 640px) { #tl-press { margin-top: 28px; } #tl-menu { margin-top: 18px; gap: 6px; } .tl-btn { padding-top: 5px; padding-bottom: 6px; } }
+  #slots { display: flex; flex-direction: column; gap: 8px; width: min(520px, calc(100vw - 80px)); margin: 0 auto 4px; text-align: left; }
+  #slots .slot { display: flex; align-items: center; gap: 12px; background: #fff; border: 2.5px solid var(--ink); border-radius: 14px; padding: 8px 10px 8px 8px; }
+  #slots .slot.empty { background: transparent; border-style: dashed; }
+  #slots .snum { flex: 0 0 34px; height: 34px; border-radius: 10px; background: var(--ink); color: var(--paper); font: 800 18px Bahnschrift, sans-serif; display: grid; place-items: center; }
+  #slots .slot.empty .snum { background: rgba(43,34,53,.2); }
+  #slots .sinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #slots .sinfo b { font-size: 16px; } #slots .sinfo span { font-size: 13px; } #slots .sinfo small { font-size: 12px; opacity: .6; }
+  #slots .slot.empty .sinfo { opacity: .6; }
+  #slots button { border: 2.5px solid var(--ink); border-radius: 12px; background: var(--paper); font-weight: 800; padding: 7px 14px; }
+  #slots button.go { background: var(--teal); color: #fff; }
+  #slots button.del { padding: 7px 10px; background: transparent; }
+  #slots button.exp { padding: 7px 10px; background: transparent; }
+  #tl-menu .tl-files { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #tl-menu .tl-files .tl-back { margin-top: 0; }
+  #tl-menu .tl-fnote { font: 700 12px "Segoe UI", sans-serif; background: rgba(255,250,240,.85); border-radius: 8px; padding: 3px 8px; }
+  #slots button.danger { background: var(--red); color: #fff; }
+  #slots .pick { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 0; text-align: center; }
+  #slots .pick span { font-size: 13px; opacity: .7; }
+  #slots .langs { display: flex; gap: 8px; justify-content: center; }
+  #journal .tabs .savebtn { margin-left: auto; font-size: 13px; }
+  #journal .tabs .quit { font-size: 13px; }
+  #journal .tabs .quit + .close { margin-left: 0; }
+  /* the journal's Phrasebook: slang, swears and everyday expressions */
+  .ph-h { margin: 6px 4px 6px; font-size: 15px; letter-spacing: .02em; }
+  .phrases { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .phrase { position: relative; display: flex; flex-direction: column; gap: 1px; padding: 8px 34px 8px 12px; border-radius: 12px; background: #fff; border: 2px solid rgba(43,34,53,.15); }
+  .phrase b { font-size: 17px; } .phrase span { font-size: 13px; opacity: .8; } .phrase i { font-size: 12px; color: #2a7f74; font-style: normal; font-weight: 700; }
+  .phrase small { font-size: 12px; opacity: .65; } .phrase button { position: absolute; right: 6px; top: 6px; border: 0; background: transparent; font-size: 15px; cursor: pointer; }
+  /* the little "Saved" chip in the corner */
+  #saved-chip { position: fixed; z-index: 13; right: 18px; bottom: 54px; padding: 5px 12px; border-radius: 99px; background: var(--ink); color: var(--paper); font-weight: 800; font-size: 13px;
+    opacity: 0; transform: translateY(6px); transition: opacity .3s, transform .3s; pointer-events: none; }
+  #saved-chip.on { opacity: .92; transform: none; }
+  #chapter { position: fixed; left: 50%; top: 18%; transform: translate(-50%, -50%); z-index: 9; text-align: center; opacity: 0; transition: opacity .6s; pointer-events: none; color: #fff;
+    text-shadow: 0 2px 0 rgba(43,34,53,.6), 0 0 18px rgba(43,34,53,.5); }
+  #chapter.on { opacity: 1; }
+  #chapter .t { font: 800 46px Bahnschrift, "Segoe UI", sans-serif; } #chapter .s { font-size: 16px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  #fade { position: fixed; inset: 0; z-index: 11; background: #14121e; opacity: 0; pointer-events: none; }
+  #toasts { position: fixed; z-index: 13; top: 56px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; }
+  .toast { background: var(--ink); color: var(--paper); padding: 7px 14px; border-radius: 99px; font-weight: 700; font-size: 15px; transition: opacity .4s, transform .4s; }
+  .toast.out { opacity: 0; transform: translateY(-8px); }
+  @media (max-width: 700px) { #help { display: none; } }
+  body.in-battle #objective, body.in-battle #counters, body.in-battle #help, body.in-battle .bubble, body.in-battle #thought, body.in-battle .prompt, body.in-battle #hushfx, body.in-battle #compass { display: none !important; }
+  body.in-battle #gl { filter: none !important; }
+</style>
+<style id="boot-css">
+  /* the boot screen (P6d): a bar while the scripts load; it fades out when the title is ready */
+  #boot { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 42%, #dff3fb 0%, #bfe4f4 55%, #a3d3e8 100%); transition: opacity .3s; user-select: none; }
+  #boot.out { opacity: 0; pointer-events: none; }
+  #boot .bt-col { display: flex; flex-direction: column; align-items: center; gap: 18px; width: min(460px, 86vw); margin-top: -4vh; }
+  #boot .bt-logo { line-height: .8; text-align: center; }
+  #boot .bt-logo .the { display: block; margin-bottom: 6px; font: 900 24px Bahnschrift, "Segoe UI", sans-serif; letter-spacing: .32em; color: var(--teal); }
+  #boot .bt-logo .hush { font: 900 clamp(64px, 9vw, 104px) Bahnschrift, "Segoe UI", sans-serif; letter-spacing: .02em; color: var(--paper); -webkit-text-stroke: 11px var(--ink); paint-order: stroke fill; }
+  #boot .bt-logo .hush i { font-style: normal; color: #c9c5d3; }
+  #boot .bt-bar { position: relative; width: 100%; height: 22px; border: 3px solid var(--ink); border-radius: 99px; background: var(--paper); overflow: hidden; box-shadow: 0 4px 0 rgba(43,34,53,.18); }
+  #boot-fill { position: absolute; inset: 0; background: var(--teal); transform: scaleX(0); transform-origin: left center; transition: transform .25s ease-out; }
+  /* (the stripes slide on the compositor, so they keep moving even while a long script runs) */
+  #boot .bt-bar::after { content: ""; position: absolute; top: 0; bottom: 0; left: -68px; right: 0; background: repeating-linear-gradient(-45deg, rgba(255,255,255,.3) 0 12px, rgba(255,255,255,0) 12px 24px); animation: btslide .8s linear infinite; }
+  @keyframes btslide { from { transform: translateX(0); } to { transform: translateX(33.94px); } }
+  #boot .bt-txt { font: 700 15px "Segoe UI", sans-serif; color: var(--ink); } #boot .bt-txt b { margin-left: 6px; font-family: Bahnschrift, "Segoe UI", sans-serif; }
+</style>
+<script>window.HUSH_BUILD = {"version": "2026.11.26.4", "built": "2026-11-26T22:58:00Z"};</script>
+<script src="webapp.js" defer></script>
+</head>
+<body>
+<div id="boot"><div class="bt-col">
+  <div class="bt-logo"><span class="the">the</span><span class="hush">H<i>U</i>SH</span></div>
+  <div class="bt-bar"><i id="boot-fill"></i></div>
+  <div class="bt-txt"><span id="boot-say">Shaping the land…</span><b id="boot-pct">0%</b></div>
+</div></div>
+<script>
+// The boot screen (P6d). The bar moves as each script below finishes. Most take a few ms; two do most of the work (world.js
+// works out the ground and the woods, main.js builds the towns and regions and draws the first frame), so they count for
+// more. When everything has run (DOMContentLoaded: the title is up), it fades out. EXPECT is roughly how many scripts follow.
+(() => {
+  // (EXPECT keeps itself right: each boot remembers how many scripts the page really had, for the next one)
+  let EXPECT = 198; try { const n = +localStorage.getItem('hush.bootScripts'); if (n > 50 && n < 2000) EXPECT = n; } catch (e) { /* */ }
+  const BIG = { 'js/world.js': 260, 'js/main.js': 380 }, SAY = { 'js/world.js': 'Building the towns and regions…' };
+  const total = EXPECT - 2 + BIG['js/world.js'] + BIG['js/main.js'];
+  let done = 0, shown = -1;
+  const el = id => document.getElementById(id);
+  function show(p, say) {
+    p = Math.max(0, Math.min(100, Math.round(p)));
+    if (p !== shown && el('boot-fill')) { shown = p; el('boot-fill').style.transform = 'scaleX(' + p / 100 + ')'; el('boot-pct').textContent = p + '%'; }
+    if (say && el('boot-say')) el('boot-say').textContent = say;
+  }
+  const step = e => { const s = e.target; if (!s || s.tagName !== 'SCRIPT' || !s.src) return; const k = s.getAttribute('src'); done += BIG[k] || 1; show(Math.min(97, done / total * 100), SAY[k]); };
+  document.addEventListener('load', step, true); document.addEventListener('error', step, true);
+  document.addEventListener('DOMContentLoaded', () => {
+    document.removeEventListener('load', step, true); document.removeEventListener('error', step, true);
+    show(100, 'Ready!');
+    try { localStorage.setItem('hush.bootScripts', String(document.querySelectorAll('script[src]').length)); } catch (e) { /* */ }
+    const b = el('boot'); if (b) { b.classList.add('out'); setTimeout(() => b.remove(), 400); }
+  });
+})();
+</script>
+<canvas id="gl" tabindex="0"></canvas>
+<div id="hushfx"></div>
+<div id="objective"></div>
+<div id="compass"></div>
+<div id="counters"><span class="chip hidden" id="chip-coins" title="Coins: you earn them in fights, and spend them in shops">🪙 <span id="count-coins">0</span></span><span class="chip">📄 <span id="count-pages">0</span>/5</span><span class="chip">💬 <span id="count-words">0</span></span><span class="chip"><button id="music" class="on">♪</button></span></div>
+<div id="help"><kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> run · <kbd>E</kbd> talk / read · <kbd>Q</kbd> ask <span id="help-mimo">Mimo</span> the way · <kbd>Tab</kbd> quests &amp; journal · drag mouse to look · <kbd>M</kbd> music</div>
+<div id="bubble" class="bubble"></div>
+<div id="bubble-mimo" class="bubble mimo"></div>
+<div id="thought"></div>
+<div id="prompt" class="prompt"><kbd>E</kbd><span>Talk</span></div>
+<div id="teach" class="panel hidden">
+  <canvas id="teach-pic" width="96" height="96"></canvas>
+  <div id="teach-title" class="ptitle"></div>
+  <div id="teach-learn" class="learnword"></div>
+  <div id="teach-hint" class="hint"></div>
+  <form id="teach-form"><input id="teach-input" autocomplete="off" spellcheck="false" placeholder="type the word…"><button type="submit">Teach</button></form>
+  <div class="prow"><button id="teach-hintbtn" type="button">Hint (Tab)</button><button id="teach-idk" type="button">I don’t know (?)</button><button id="teach-cancel" type="button">Not now (Esc)</button></div>
+</div>
+<div id="command" class="panel hidden">
+  <canvas id="command-pic" width="96" height="96"></canvas>
+  <div id="command-title" class="ptitle"></div>
+  <div id="command-hint" class="hint"></div>
+  <form id="command-form"><input id="command-input" autocomplete="off" spellcheck="false" placeholder="tell Mimo what to do…"><button type="submit">Say it</button></form>
+  <div class="prow"><button id="command-help" type="button">I don’t know (?)</button><button id="command-cancel" type="button">Not now (Esc)</button></div>
+</div>
+<div id="ask" class="panel hidden"><div id="ask-title" class="ptitle"></div><form id="ask-form"><input id="ask-input" autocomplete="off" spellcheck="false"><button type="submit">OK</button></form></div>
+<div id="card" class="card hidden"></div>
+<div id="letter" class="hidden"><div style="display:grid"><div class="paper"></div><button class="next">Next ▸</button></div></div>
+<div id="journal" class="hidden"></div>
+<div id="title" class="hidden">
+  <div class="tl-shade"></div>
+  <div class="tl-col">
+    <div class="tl-logo"><span class="the">the</span><span class="hush"><b>H</b><b class="hushed">U</b><b>S</b><b class="perch">H</b></span></div>
+    <div class="tl-tagline"><span id="tl-tag">a language adventure</span></div>
+    <div id="tl-press">Press any key</div>
+    <div id="tl-menu" class="hidden"></div>
+  </div>
+  <div class="tl-foot"><button id="tl-music">♪ Music on</button><span>Chapter 0 · The End of the Line &nbsp;·&nbsp; works offline &nbsp;·&nbsp; your saves stay on this computer</span></div>
+</div>
+<div id="chapter"></div>
+<div id="fade"></div>
+<div id="toasts"></div>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/toonkit.js"></script>
+<script src="js/cull.js"></script><!-- (the world's render skips what nobody can see: sub-pixel parts and hairline outlines; main.js attaches it) -->
+<script src="js/actors.js"></script>
+<script src="js/lexicon.js"></script>
+<!-- accents (P6a): the shared rule for graders (a missing accent never costs a grade) and the accent bar under every text box -->
+<script src="js/accents.js"></script>
+<script src="js/lang/cjk.js"></script>
+<script src="js/lang/words.js"></script>
+<script src="js/dict/dict.js"></script>
+<!-- the dictionary packs (DESIGN.md 15, FLUENT.md) go here, right after dict.js: js/dict/es.js, pt.js, de.js, zh.js, ja.js -->
+<script src="js/dict/latin.js"></script>
+<script src="js/dict/es.js"></script>
+<script src="js/dict/pt.js"></script>
+<script src="js/dict/de.js"></script>
+<script src="js/dict/zh.js"></script>
+<script src="js/dict/ja.js"></script>
+<script src="js/lang/lines.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/town.js"></script>
+<script src="js/molinar.js"></script>
+<script src="js/lake.js"></script>
+<script src="js/cornmaze.js"></script>
+<script src="js/townlife.js"></script>
+<script src="js/domino.js"></script>
+<script src="js/cemetery.js"></script>
+<script src="js/caves.js"></script>
+<script src="js/gardens.js"></script>
+<script src="js/peaks.js"></script>
+<script src="js/port.js"></script>
+<script src="js/team.js"></script>
+<script src="js/marsh.js"></script>
+<script src="js/ruins.js"></script>
+<script src="js/world.js"></script>
+<script src="js/world3d.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/quests.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/story.js"></script>
+<script src="js/battle/lang.js"></script>
+<script src="js/battle/parser.js"></script>
+<script src="js/battle/models.js"></script>
+<script src="js/battle/stage.js"></script>
+<script src="js/battle/ui.js"></script>
+<script src="js/battle/flow.js"></script>
+<script src="js/battle/rewards.js"></script>
+<script src="js/battle_fx.js"></script>
+<script src="js/battle/tactics.js"></script>
+<script src="js/tactics_yard.js"></script>
+<script src="js/battle/timebattle.js"></script>
+<script src="js/marsh_battle.js"></script>
+<script src="js/ruins_battle.js"></script>
+<script src="js/ruins_music.js"></script>
+<script src="js/interlude.js"></script>
+<script src="js/mill.js"></script>
+<script src="js/isle.js"></script>
+<script src="js/mine.js"></script>
+<script src="js/greenhouse.js"></script>
+<script src="js/icetower.js"></script>
+<script src="js/port_play.js"></script>
+<script src="js/port_fort.js"></script>
+<script src="js/port_music.js"></script>
+<script src="js/marsh_chapel.js"></script>
+<script src="js/ruins_scenes.js"></script>
+<script src="js/ruins_temple.js"></script>
+<script src="js/interiors.js"></script>
+<!-- the homes (playtest 4): their furniture and layouts, the side quests, and who lives where in each town -->
+<script src="js/interiors_themes.js"></script>
+<script src="js/interiors_rooms.js"></script>
+<script src="js/interiors_quests.js"></script>
+<script src="js/interiors_alba.js"></script>
+<script src="js/interiors_molinar.js"></script>
+<script src="js/interiors_remanso.js"></script>
+<script src="js/title.js"></script>
+<script src="js/minimap.js"></script>
+<script src="js/minigames.js"></script>
+<script src="js/phonk.js"></script>
+<script src="js/adolf.js"></script>
+<script src="js/signs.js"></script>
+<script src="js/romance.js"></script>
+<script src="js/school.js"></script>
+<script src="js/anime.js"></script>
+<script src="js/dance.js"></script>
+<script src="js/grandma.js"></script>
+<script src="js/kungfu.js"></script>
+<script src="js/zhfolk.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/newyear.js"></script>
+<script src="js/muertos_ui.js"></script>
+<script src="js/muertos.js"></script>
+<script src="js/lucha.js"></script>
+<script src="js/matsuri.js"></script>
+<script src="js/shogi.js"></script>
+<script src="js/carnaval_ui.js"></script>
+<script src="js/carnaval.js"></script>
+<script src="js/weihnacht_ui.js"></script>
+<script src="js/weihnacht.js"></script>
+<script src="js/doener.js"></script>
+<script src="js/familia_ui.js"></script>
+<script src="js/familia.js"></script>
+<script src="js/baile.js"></script>
+<!-- the Old Tower, the end of Chapter 1: its words, the door and the climb, the top (the hooded figure, the fall into the Past) -->
+<script src="js/oldtower_text.js"></script>
+<script src="js/oldtower.js"></script>
+<script src="js/oldtower_boss.js"></script>
+<!-- the Past («el Ayer», Chapter 2): its words, the re-dressed Alba of long ago, the scenes and the boss, the songs (before the Future: its quest steps come first) -->
+<script src="js/past_text.js"></script>
+<script src="js/past.js"></script>
+<script src="js/past_scenes.js"></script>
+<script src="js/past_music.js"></script>
+<!-- the Future («el Mañana», Chapter 3): its words and graders, the re-dressed Alba, the scenes, the songs, the arena -->
+<script src="js/future_text.js"></script>
+<script src="js/future.js"></script>
+<script src="js/future_scenes.js"></script>
+<script src="js/future_music.js"></script>
+<script src="js/future_battle.js"></script>
+<!-- the three worlds (DESIGN.md 18, game/TIME.md): the time cracks, each world's rules, cross-time effects; then each region's own (Alba first) -->
+<script src="js/time.js"></script>
+<!-- Chapter 4, «Elio's words» (DESIGN.md 18.5, TIME.md §15): the thread across the worlds; before every region file -->
+<script src="js/chapter4.js"></script>
+<script src="js/time_alba.js"></script>
+<!-- Alba long ago, after Chapter 2 (DESIGN.md 18.6 "T1a"): its words, songs, the Prompter, the rooms under the stage and the homes of then, the people and Chapter 4's opening -->
+<script src="js/alba_past_text.js"></script>
+<script src="js/alba_past_music.js"></script>
+<script src="js/alba_past_boss.js"></script>
+<script src="js/alba_past_stage.js"></script>
+<script src="js/alba_past.js"></script>
+<!-- Alba tomorrow, after the Past (DESIGN.md 18.6 "T1b"): its words, two songs, the people of tomorrow and the Old Quarter, the old theater's rooms (with the bakery and the new library), the Laughing Gallery -->
+<script src="js/alba_future_text.js"></script>
+<script src="js/alba_future_music.js"></script>
+<script src="js/alba_future.js"></script>
+<script src="js/alba_future_hall.js"></script>
+<script src="js/alba_future_boss.js"></script>
+<!-- Molinar long ago and tomorrow (DESIGN.md 18.6 "T1c"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, both dungeons, both bosses, six songs -->
+<script src="js/molinar_past_text.js"></script>
+<script src="js/molinar_future_text.js"></script>
+<script src="js/time_molinar.js"></script>
+<script src="js/molinar_past.js"></script>
+<script src="js/molinar_future.js"></script>
+<script src="js/molinar_past_mill.js"></script>
+<script src="js/molinar_future_mill.js"></script>
+<script src="js/molinar_time_boss.js"></script>
+<script src="js/molinar_time_music.js"></script>
+<!-- the Mirror Lake long ago and tomorrow (DESIGN.md 18.10 "T2a"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, both grottoes, both bosses, six songs -->
+<script src="js/lake_past_text.js"></script>
+<script src="js/lake_future_text.js"></script>
+<script src="js/time_lake.js"></script>
+<script src="js/lake_past.js"></script>
+<script src="js/lake_future.js"></script>
+<script src="js/lake_past_dungeon.js"></script>
+<script src="js/lake_future_dungeon.js"></script>
+<script src="js/lake_time_boss.js"></script>
+<script src="js/lake_time_music.js"></script>
+<!-- the Quarry Caves long ago and tomorrow (DESIGN.md 18.10 "T2b"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, both deep mines, both bosses, the songs -->
+<script src="js/quarry_past_text.js"></script>
+<script src="js/quarry_future_text.js"></script>
+<script src="js/time_quarry.js"></script>
+<script src="js/quarry_past.js"></script>
+<script src="js/quarry_future.js"></script>
+<script src="js/quarry_past_dungeon.js"></script>
+<script src="js/quarry_future_dungeon.js"></script>
+<script src="js/quarry_time_boss.js"></script>
+<script src="js/quarry_time_music.js"></script>
+<!-- the Bloom Gardens long ago and tomorrow (DESIGN.md 20 "T3a"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, both greenhouses, both bosses, six songs -->
+<script src="js/gardens_past_text.js"></script>
+<script src="js/gardens_future_text.js"></script>
+<script src="js/time_gardens.js"></script>
+<script src="js/gardens_past.js"></script>
+<script src="js/gardens_future.js"></script>
+<script src="js/gardens_past_dungeon.js"></script>
+<script src="js/gardens_future_dungeon.js"></script>
+<script src="js/gardens_time_boss.js"></script>
+<script src="js/gardens_time_music.js"></script>
+<!-- the Frost Peaks long ago and tomorrow (DESIGN.md 20 "T3b"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, the White Hollow and tomorrow's tower, both bosses, six songs -->
+<script src="js/peaks_past_text.js"></script>
+<script src="js/peaks_future_text.js"></script>
+<script src="js/time_peaks.js"></script>
+<script src="js/peaks_past.js"></script>
+<script src="js/peaks_future.js"></script>
+<script src="js/peaks_past_dungeon.js"></script>
+<script src="js/peaks_future_dungeon.js"></script>
+<script src="js/peaks_time_boss.js"></script>
+<script src="js/peaks_time_music.js"></script>
+<!-- Port Brisa long ago and tomorrow (DESIGN.md 20.1b "T4a"): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, La Golondrina and tomorrow's harbor office, both bosses, six songs -->
+<script src="js/port_past_text.js"></script>
+<script src="js/port_future_text.js"></script>
+<script src="js/time_port.js"></script>
+<script src="js/port_past.js"></script>
+<script src="js/port_future.js"></script>
+<script src="js/port_past_dungeon.js"></script>
+<script src="js/port_future_dungeon.js"></script>
+<script src="js/port_time_boss.js"></script>
+<script src="js/port_time_music.js"></script>
+<script src="js/port_battle.js"></script><!-- (the harbor arena: every fight in Port Brisa, today and in both worlds) -->
+<!-- terraforming (DESIGN.md 21.1 "TF1"): TIME.land, each region's own land long ago and tomorrow (dunes, drifts, ice, water up and down, what grows), its words, the dust and dune arenas -->
+<script src="js/time_land.js"></script>
+<script src="js/time_land_text.js"></script>
+<script src="js/time_land_regions.js"></script>
+<script src="js/time_land_battle.js"></script>
+<!-- the Sunken Ruins long ago and tomorrow (DESIGN.md 20.1b "next, the Sunken Ruins", T4b): the words, the region and its cracks (Noa, Chapter 4's steps), both worlds, their lands (TIME.land: the green canyon, the sea over the ruins), the temple first opened and the sunken temple, both bosses, six songs, two arenas -->
+<script src="js/ruins_past_text.js"></script>
+<script src="js/ruins_future_text.js"></script>
+<script src="js/time_ruins.js"></script>
+<script src="js/ruins_past.js"></script>
+<script src="js/ruins_future.js"></script>
+<script src="js/ruins_past_dungeon.js"></script>
+<script src="js/ruins_future_dungeon.js"></script>
+<script src="js/ruins_time_boss.js"></script>
+<script src="js/ruins_time_music.js"></script>
+<script src="js/ruins_time_battle.js"></script><!-- (the 'riverbank' and 'flooded' arenas) -->
+<script src="js/time_ruins_land.js"></script>
+<!-- the Gray Marsh long ago and tomorrow (T4c, Chapter 4's last place): the words, the region and its cracks (Noa, Chapter 4's last steps), both worlds, their lands (TIME.land: the clear lake, the basin turned to stone), the Lantern House and the Stone Chapel, both bosses, six songs, two arenas -->
+<script src="js/marsh_past_text.js"></script>
+<script src="js/marsh_future_text.js"></script>
+<script src="js/time_marsh.js"></script>
+<script src="js/marsh_past.js"></script>
+<script src="js/marsh_future.js"></script>
+<script src="js/marsh_past_dungeon.js"></script>
+<script src="js/marsh_future_dungeon.js"></script>
+<script src="js/marsh_time_boss.js"></script>
+<script src="js/marsh_time_music.js"></script>
+<script src="js/marsh_time_battle.js"></script><!-- (the 'lanternlake' and 'stonewood' arenas) -->
+<script src="js/time_marsh_land.js"></script>
+<script src="js/marsh_text_pt.js"></script><!-- (each language's lines and tasks, merged in: MARSHT.add, MHPTXT.add, MHFTXT.add) -->
+<script src="js/marsh_text_de.js"></script>
+<script src="js/marsh_text_zh.js"></script>
+<script src="js/marsh_text_ja.js"></script>
+<!-- Chapter 4's finale, «Toda voz cuenta» (T4d): the tower's door and the rise, the seam for the final battle, the clock at eight, the old theater's stage in all three times at once, the speech, the laugh, the aftermath, the credits, five songs -->
+<script src="js/finale_text.js"></script>
+<script src="js/finale_text_pt.js"></script><!-- (each language's lines, tasks and slip, merged in: FINTXT.add) -->
+<script src="js/finale_text_de.js"></script>
+<script src="js/finale_text_zh.js"></script>
+<script src="js/finale_text_ja.js"></script>
+<script src="js/finale.js"></script>
+<script src="js/finale_stage.js"></script>
+<script src="js/finale_credits.js"></script>
+<script src="js/finale_music.js"></script>
+<!-- free talk (js/talk/) and reading and listening (js/read/) go here, before main.js (DESIGN.md 15, FLUENT.md) -->
+<script src="js/talk/mix.js"></script>
+<script src="js/talk/talk.js"></script>
+<script src="js/talk/bridge.js"></script>
+<script src="js/talk/talk_ui.js"></script>
+<script src="js/talk/phone.js"></script>
+<script src="js/talk/meter.js"></script>
+<script src="js/talk/content_es.js"></script>
+<script src="js/talk/content_pt.js"></script>
+<script src="js/talk/content_de.js"></script>
+<script src="js/talk/content_zh.js"></script>
+<script src="js/talk/content_ja.js"></script>
+<script src="js/read/speech.js"></script>
+<script src="js/read/read.js"></script>
+<script src="js/read/reader.js"></script>
+<script src="js/read/library.js"></script>
+<script src="js/read/diary.js"></script>
+<script src="js/read/radio.js"></script>
+<script src="js/read/overheard.js"></script>
+<script src="js/read/content_es.js"></script>
+<script src="js/read/content_pt.js"></script>
+<script src="js/read/content_de.js"></script>
+<script src="js/read/content_zh.js"></script>
+<script src="js/read/content_ja.js"></script>
+<!-- tests hidden in the world (D1, DESIGN.md 21.2 D): Radio Alba's weekly quiz show (listening: radio.js lists it first) and the library's
+     book club (reading: the librarian's menu, this month's picks on the notice board, the lost cat's notice), with their episodes and books -->
+<script src="js/read/quiz.js"></script>
+<script src="js/read/club.js"></script>
+<script src="js/read/quiz_es.js"></script>
+<script src="js/read/club_es.js"></script>
+<script src="js/read/quiz_pt.js"></script>
+<script src="js/read/club_pt.js"></script>
+<script src="js/read/quiz_de.js"></script>
+<script src="js/read/club_de.js"></script>
+<script src="js/read/quiz_zh.js"></script>
+<script src="js/read/club_zh.js"></script>
+<script src="js/read/quiz_ja.js"></script>
+<script src="js/read/club_ja.js"></script>
+<!-- flashcards from Mimo's words (P6a): the journal's Flashcards tab and their key (F) -->
+<script src="js/flashcards.js"></script>
+<!-- language tests (EX1, DESIGN.md 21.2): the Academy of Alba (house 8, the west street) and its level exams, A1–B2: four parts of 25
+     (listening, reading, writing, speaking), the letter when your level is ready, certificates on the level page; the engine C and D build on -->
+<script src="js/exam/exam.js"></script>
+<script src="js/exam/exam_ui.js"></script>
+<script src="js/exam/academy.js"></script>
+<script src="js/exam/content_es.js"></script>
+<script src="js/exam/content_pt.js"></script>
+<script src="js/exam/content_de.js"></script>
+<script src="js/exam/content_zh.js"></script>
+<script src="js/exam/content_ja.js"></script>
+<!-- the exam hall's practice papers (EX2, DESIGN.md 21.2 C): mock papers in the real formats (DELE, Goethe, HSK, JLPT, Celpe-Bras),
+     our own questions, timed or untimed, full papers or one-section drills, reports shaped like the real ones -->
+<script src="js/exam/formats.js"></script>
+<script src="js/exam/mock_ui.js"></script>
+<script src="js/exam/papers/es_dele_a1.js"></script>
+<script src="js/exam/papers/es_dele_a2.js"></script>
+<script src="js/exam/papers/es_dele_b1.js"></script>
+<script src="js/exam/papers/es_dele_b2.js"></script>
+<script src="js/exam/papers/de_goethe_a1.js"></script>
+<script src="js/exam/papers/de_goethe_a2.js"></script>
+<script src="js/exam/papers/de_goethe_b1.js"></script>
+<script src="js/exam/papers/de_goethe_b2.js"></script>
+<script src="js/exam/papers/zh_hsk_1.js"></script>
+<script src="js/exam/papers/zh_hsk_2.js"></script>
+<script src="js/exam/papers/zh_hsk_3.js"></script>
+<script src="js/exam/papers/zh_hsk_4.js"></script>
+<script src="js/exam/papers/ja_jlpt_n5.js"></script>
+<script src="js/exam/papers/ja_jlpt_n4.js"></script>
+<script src="js/exam/papers/ja_jlpt_n3.js"></script>
+<script src="js/exam/papers/pt_int_a1.js"></script>
+<script src="js/exam/papers/pt_int_a2.js"></script>
+<script src="js/exam/papers/pt_celpe_b1.js"></script>
+<script src="js/exam/papers/pt_celpe_b2.js"></script>
+<!-- life in Alba (D2, DESIGN.md 21.2 D, the writing and speaking half of the tests hidden in the world): the town hall and post office (house 11,
+     the west street; Leandro keeps his flat upstairs), pen pals by mail ('write'), part-time jobs with interviews and shifts ('talk'), town debates -->
+<script src="js/life/life.js"></script>
+<script src="js/life/life_ui.js"></script>
+<script src="js/life/townhall.js"></script>
+<script src="js/life/mail.js"></script>
+<script src="js/life/jobs.js"></script>
+<script src="js/life/debate.js"></script>
+<script src="js/life/content_es.js"></script>
+<script src="js/life/content_pt.js"></script>
+<script src="js/life/content_de.js"></script>
+<script src="js/life/content_zh.js"></script>
+<script src="js/life/content_ja.js"></script>
+<!-- battles and items (P6b, DESIGN.md 19): Mimo's hearts carry over between fights (the corner chip, resting at inns); the pantry (what each
+     food heals and does, the lucky charm, drinks, feeding Mimo from the bag, the inns' keepers); how to order in the shops; the foes' lines mixed and taught -->
+<script src="js/hearts.js"></script>
+<script src="js/pantry.js"></script>
+<script src="js/shop_order.js"></script>
+<script src="js/battle/foelines.js"></script>
+<!-- language in battle (P7a, DESIGN.md 20): dodging out loud (a reaction box, time slows; Settings can bring back the keys); chaining moves
+     with «y» (crits, and a slip breaks the chain); Mimo's lines and Noa's notebook pages mixed by the weave -->
+<script src="js/battle/react.js"></script>
+<script src="js/battle/chain.js"></script>
+<script src="js/mixlines.js"></script>
+<!-- the bosses' own themes, and the tough-fight switch to the language's boss theme (P6d, DESIGN.md 19) -->
+<script src="js/boss_music.js"></script>
+<!-- world and UI polish (P7b, DESIGN.md 20): the calm HUD and journal (five sections with sub-tabs, a short help bar and H for every key,
+     one chip strip); the most natural voice for each language (Settings: a picker, Test and speed; offline-safe); the Mirror Lake's frogs on
+     the paths, and the road fight the main path can't skip, where three look-alikes teach «la de la izquierda / del medio / de la derecha» -->
+<script src="js/hud.js"></script>
+<script src="js/voices.js"></script>
+<script src="js/lake_frogs.js"></script>
+<!-- the final battle (FB1, DESIGN.md 21.11): the Hush wearing Elio at the top of the Old Tower, the vines, the trials inside the Hush, its core and
+     the duo finisher, and the suite «Toda voz cuenta» (after the battle files, FIN and OLDTOWER; before main.js) -->
+<script src="js/fb_music.js"></script>
+<script src="js/fb_text.js"></script>
+<script src="js/fb_text_pt.js"></script><!-- (each language's lines, rungs, slips and masks, merged in: FBTXT.add) -->
+<script src="js/fb_text_de.js"></script>
+<script src="js/fb_text_zh.js"></script>
+<script src="js/fb_text_ja.js"></script>
+<script src="js/fb_boss.js"></script>
+<script src="js/fb_core.js"></script>
+<script src="js/fb_realm.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
