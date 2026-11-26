@@ -12,7 +12,7 @@
   // ------------------------------------------------------------ the look (the game's paper and ink)
   const css = document.createElement('style');
   css.textContent = `
-    #hush-upd { position: fixed; left: 14px; bottom: 14px; z-index: 99999; max-width: 330px; background: #fffaf0; color: #2b2235; border: 2.5px solid #2b2235;
+    #hush-upd { position: fixed; left: 14px; bottom: 56px; z-index: 99999; max-width: 330px; background: #fffaf0; color: #2b2235; border: 2.5px solid #2b2235;
       border-radius: 14px; box-shadow: 0 4px 0 rgba(43,34,53,.25); padding: 10px 12px; font: 600 13px "Segoe UI", system-ui, sans-serif; }
     #hush-upd b { display: block; font-size: 14px; margin-bottom: 2px; }
     #hush-upd .row { display: flex; gap: 8px; margin-top: 8px; }
