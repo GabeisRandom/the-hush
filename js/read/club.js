@@ -63,8 +63,8 @@ const CLUB = (() => {
 
   // ------------------------------------------------------------ the notice board (library.js reads librarian.notice each time)
   // The content's own lines show when the club isn't running; while it runs, the board is the club's: its heading, this month's
-  // picks two to a line (A1 · A2, B1 · B2) and where it meets. (Four lines at most: signs.js's Read card wraps long lines only
-  // when it isn't in its compact grid, which starts at five.)
+  // picks two to a line (A1 · A2, B1 · B2) and where it meets. (Four lines at most, so the Read card keeps its roomy layout;
+  // signs.js's compact grid for five lines or more wraps long lines too, since 2026-11-26.)
   const BASE = {};
   function noticeLines(l) {
     const c = cfg(l), base = BASE[l] || [];

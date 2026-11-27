@@ -1013,6 +1013,14 @@ const TALK = (() => {
   function notifyBonds() {
     if (typeof STORY !== 'undefined' && (STORY.busy || STORY.line)) return;
     if (G && G.indoorMod && G.indoorMod()) return;      // (in a room or a time realm: the nudge waits till you're back out in town)
+    // (and, like quiz.js, life.js and phone.js: the final act's places (finale.js FIN.quiet: the Old Tower, inside the Hush, the old
+    // theater at eight), any other time or the way there (the Past, the Future, a region's other worlds), a fight, the title, and a
+    // full-screen panel (ui.js UI.panelUp))
+    if (typeof FIN !== 'undefined' && FIN.quiet && FIN.quiet()) return;
+    if ((typeof PAST !== 'undefined' && PAST.inside) || (typeof FUTURE !== 'undefined' && FUTURE.inside)) return;
+    try { if (typeof TIME !== 'undefined' && (TIME.busy || (TIME.world && TIME.world() !== 'now'))) return; } catch (e) { /* */ }
+    if (typeof document !== 'undefined' && /(^|\s)(in-battle|on-title)(\s|$)/.test(document.body.className)) return;
+    if (typeof UI !== 'undefined' && UI.panelUp && UI.panelUp()) return;
     const st = S(), f = flags();
     for (const id of Object.keys(BOND).sort((a, b) => BOND[a].order - BOND[b].order)) {
       const b = BOND[id]; if (!b.gate || !b.gate(f)) continue;

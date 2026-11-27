@@ -25,6 +25,7 @@ const QUIZ = (() => {
   const cj = () => isCJ(L()) && typeof CJK !== 'undefined';
   const esc = READ.esc, fill = READ.fill;
   const H = s => READ.html(s), P = s => READ.plain(s);
+  const tapWords = s => (typeof READER !== 'undefined' && READER.wordsHTML ? READER.wordsHTML(s) : H(s));      // (the transcript's words, tappable: reader.js)
   const WEEK_S = 1200, QMAX = 3, PLAYS = 2;
   const LANGNAME = { es: 'Spanish', pt: 'Portuguese', de: 'German', zh: 'Chinese', ja: 'Japanese' };
   const snd = k => { try { if (typeof Sound !== 'undefined') Sound.play(k); } catch (e) { /* */ } };
@@ -135,9 +136,10 @@ const QUIZ = (() => {
     if (!started()) return [];
     const sh = show(), name = `«${P(sh.title)}»`, s = S(), q = waiting(), out = [];
     if (q > 0) {
-      const w = week();
-      if (w.main) out.push({ label: `🏆 ${name} · this week (${READ.BAND(w.main.band)}) · NEW`, sub: `${w.main.en || ''}: listen, answer, win coins${q > 1 ? ` · ${q} weeks waiting` : ''}`, run: () => play(w.main, { prize: true }) });
-      if (w.bonus) out.push({ label: `🏆 ${name} · bonus round (${READ.BAND(w.bonus.band)})`, sub: `${w.bonus.en || ''}: a level up, 3 coins a right answer`, run: () => play(w.bonus, { prize: true, bonus: true }) });
+      // (a week is one prize play: this week's episode or the bonus round. With both on offer, the menu says so plainly)
+      const w = week(), both = !!(w.main && w.bonus), pick = both ? ' · pick one' : '';
+      if (w.main) out.push({ label: `🏆 ${name} · this week (${READ.BAND(w.main.band)}) · NEW${pick}`, sub: `${w.main.en || ''}: listen, answer, win coins${both ? ' · one prize play a week: this or the bonus round' : ''}${q > 1 ? ` · ${q} weeks waiting` : ''}`, run: () => play(w.main, { prize: true }) });
+      if (w.bonus) out.push({ label: `🏆 ${name} · bonus round (${READ.BAND(w.bonus.band)})${pick}`, sub: `${w.bonus.en || ''}: a level up, 3 coins a right answer${both ? ' · instead of this week’s episode' : ''}`, run: () => play(w.bonus, { prize: true, bonus: true }) });
       if (!w.main && !w.bonus) { const r = rerunPick(); if (r) out.push({ label: `🏆 ${name} · this week: a rerun`, sub: `${r.en || ''}: you’ve heard every new one at your level (no prizes; it keeps your streak)`, run: () => play(r, { week: true }) }); }
     }
     const heard = list().filter(e => s.eps[e.id]).length;
@@ -259,6 +261,7 @@ const QUIZ = (() => {
   }
   function close() {
     try { if (typeof SPEECH !== 'undefined') SPEECH.stop(); } catch (e) { /* */ }
+    try { if (typeof READER !== 'undefined' && READER.glossOpen) READER.hideGloss(); } catch (e) { /* */ }
     if (!root || openN <= 0) return;
     if (!--openN) {
       root.className = 'hidden'; root.innerHTML = '';
@@ -572,7 +575,7 @@ const QUIZ = (() => {
       + `<div class="qz-ctl"><button class="qz-btn main" data-a="play">▶ Play</button><span class="qz-left"></span><button class="qz-btn ${SPEECH.slow ? 'on' : ''}" data-a="slow" title="About 0.8× speed">🐢 Slower</button>`
       + `<button class="qz-btn" data-a="words">📝 Show the words</button><button class="qz-btn hidden" data-a="en">EN</button></div><div class="qz-note"></div>`
       + `<canvas class="qz-radioart" width="420" height="270"></canvas>`
-      + `<div class="qz-script hidden">${all.map((l, i) => `<p class="qz-l${l.frame ? ' frame' : ''}" data-i="${i}"><span class="who">${esc(nameOf(l.who))}</span><span class="tx">${H(l.text)}</span><button class="qz-sb" type="button" data-line="${i}" title="Hear this line">🔊</button><span class="en">${esc(l.en || '')}</span></p>`).join('')}</div></div>`
+      + `<div class="qz-script hidden">${all.map((l, i) => `<p class="qz-l${l.frame ? ' frame' : ''}" data-i="${i}"><span class="who">${esc(nameOf(l.who))}</span><span class="tx" data-text="${esc(l.text)}">${tapWords(l.text)}</span><button class="qz-sb" type="button" data-line="${i}" title="Hear this line">🔊</button><span class="en">${esc(l.en || '')}</span></p>`).join('')}</div></div>`
       + `<div class="qz-main"><div class="qz-after"></div><div class="qz-h">The quiz · ${items.length} questions${o.prize ? ` · ${o.bonus ? 3 : 2} coins a right answer` : ''}</div>`
       + (firstEver ? `<p class="qz-note">How it works: listen (two plays), answer, then lock in. A perfect score adds a sticker to your album, and listening every week makes you a regular.</p>` : '')
       + (o.practice || o.week ? '<p class="qz-note">A rerun: no prizes. Your answers still count toward your listening.</p>' : '')
@@ -636,6 +639,7 @@ const QUIZ = (() => {
     card.querySelector('[data-a="words"]').onclick = () => { snd('click'); showScript('peek'); };
     card.querySelector('[data-a="en"]').onclick = e => { script.classList.toggle('en-on'); e.currentTarget.classList.toggle('on'); };
     script.querySelectorAll('[data-line]').forEach(b => b.onclick = e => { e.stopPropagation(); const i = +b.dataset.line; playLines([all[i]], i); });
+    if (typeof READER !== 'undefined' && READER.taps) READER.taps(script, { host: r });           // (tap a word in the transcript: its gloss, as in the books)
     setLeft();
     // locking in: grade, log, prizes, the hosts' reaction
     function lockIn() {
@@ -686,7 +690,7 @@ const QUIZ = (() => {
     lockB.onclick = () => (locked ? finish() : lockIn());
     card.querySelector('.qz-x').onclick = finish;
     keys(e => {
-      if (e.code === 'Escape') { finish(); return true; }
+      if (e.code === 'Escape') { if (typeof READER !== 'undefined' && READER.glossOpen) READER.hideGloss(); else finish(); return true; }
       if (e.code === 'Space' && !readMode) { playAll(); return true; }
       if (e.code === 'Enter') { if (locked) finish(); else lockIn(); return true; }
       return false;

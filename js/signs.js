@@ -140,14 +140,19 @@ const SIGNS = (() => {
       + (note ? `<div class="note">${note}</div>` : '')
       + `<div class="sub"><b>${esc(keyName('interact') || 'E')}</b> to close · 🔊 or <b>${esc(keyName('look') || 'Q')}</b> to hear it`
       + (lines.some(L => L.en) ? ` · <button type="button" class="sg-enb" title="The English (T)">EN</button>` : '') + '</div>';
-    el.className = 'card sign-card' + (lines.length > 4 ? ' compact' : '');      // (a long board: smaller rows, so it fits)
+    // (a long board: smaller rows in a grid, so it fits; with long lines too, a wider card, and the lines wrap)
+    const lenOf = t => (cjkOn() && CJK.hasCJK(String(t)) ? CJK.len(String(t), { lang: lang() }) : String(t).length);
+    const compact = lines.length > 4, wide = compact && lines.some(L => lenOf(L.text) > 24);
+    el.className = 'card sign-card' + (compact ? ' compact' : '') + (wide ? ' wide' : '');
+    const fitIt = () => { if (typeof UI !== 'undefined' && UI.fitCard) UI.fitCard(el); };       // (a small window: ui.js keeps the card whole)
     el.querySelectorAll('.sg-say').forEach(b => { b.onclick = e => { e.stopPropagation(); say(sayOf(lines[+b.dataset.i])); }; });
-    const toggleEn = () => el.classList.toggle('en-on');          // (the English of every line on the card, on request)
+    const toggleEn = () => { el.classList.toggle('en-on'); fitIt(); };          // (the English of every line on the card, on request)
     const enb = el.querySelector('.sg-enb'); if (enb) enb.onclick = e => { e.stopPropagation(); toggleEn(); };
     if (typeof Sound !== 'undefined' && Sound.play) Sound.play('page');
+    fitIt(); setTimeout(fitIt, 350);
     try { await waitClose(() => say(lines.map(sayOf).filter(Boolean).join('. ')), toggleEn); }
     finally {
-      el.className = 'card hidden'; el.innerHTML = ''; open = false;
+      el.className = 'card hidden'; el.innerHTML = ''; el.style.top = el.style.zoom = ''; open = false;
       if (sim && sim.lock === 1) sim.lock = was || 0;
     }
   }
@@ -172,11 +177,12 @@ const SIGNS = (() => {
       .sign-card .sg-enb { font: 800 12px "Segoe UI", sans-serif; color: var(--ink); border: 2px solid var(--ink); border-radius: 8px; background: #fff; padding: 1px 8px; cursor: pointer; }
       .sign-card.en-on .sg-enb { background: #fff3c4; }
       .sign-card .sg-hush { color: #a39db2; text-shadow: 0 0 6px rgba(163,157,178,.8); }
-      .sign-card.compact .sg-list { display: grid; grid-template-columns: max-content max-content max-content; justify-content: center; align-items: center; gap: 6px 10px; margin: 8px 0 6px; }
+      #card.sign-card.wide { width: min(640px, calc(100vw - 40px)); }
+      .sign-card.compact .sg-list { display: grid; grid-template-columns: minmax(0, max-content) max-content minmax(0, max-content); justify-content: center; align-items: center; gap: 6px 10px; margin: 8px 0 6px; }
       .sign-card.compact .sg-row, .sign-card.compact .sg-top { display: contents; }
       .sign-card.compact .sg-board { justify-self: end; font-size: 24px; padding: 4px 12px 3px; border-width: 3px; }
       .sign-card.compact .sg-say { width: 34px; height: 34px; font-size: 16px; }
-      .sign-card.compact .sg-en { font-size: 14px; text-align: left; }
+      .sign-card.compact .sg-en { font-size: 14px; text-align: left; max-width: 190px; }
       .sign-card .note { font: 17px/1.35 "Segoe Print", "Ink Free", cursive; margin: 4px 0 2px; }
       .sign-card .sub b { font-weight: 800; }`;
     document.head.appendChild(s);

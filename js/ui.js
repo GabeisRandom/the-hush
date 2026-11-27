@@ -332,12 +332,24 @@ const UI = (() => {
   async function card(html, o = {}) {
     const el = $('card'); el.innerHTML = html; el.className = 'card ' + (o.kind || ''); el.classList.remove('hidden');
     if (o.icon) ICONS.draw(el.querySelector('canvas'), o.icon);
-    el.querySelectorAll('[data-act="en"]').forEach(b => b.onclick = e => { e.stopPropagation(); el.querySelector('.en').classList.toggle('show'); });
+    el.querySelectorAll('[data-act="en"]').forEach(b => b.onclick = e => { e.stopPropagation(); el.querySelector('.en').classList.toggle('show'); fitCard(el); });
     el.querySelectorAll('[data-act="say"]').forEach(b => b.onclick = e => { e.stopPropagation(); speak(b.dataset.text); });
     if (o.say) setTimeout(() => speak(o.say), 300);
+    fitCard(el); setTimeout(() => fitCard(el), 350);          // (again once its fonts are in)
     await waitKey();
-    el.classList.add('hidden');
+    el.classList.add('hidden'); el.style.top = el.style.zoom = '';
   }
+  // (a small window: a card too tall for its usual spot moves down until it's whole, and one taller than the window shrinks
+  // to fit it; every card, every language. signs.js's Read card uses it too. Its CSS top (30%, or a kind's own) stays the spot)
+  function fitCard(el = $('card')) {
+    if (!el || el.classList.contains('hidden')) return;
+    el.style.top = el.style.zoom = '';
+    const vh = innerHeight, pad = 8, h = el.offsetHeight; if (!h) return;
+    if (h > vh - 2 * pad) { el.style.zoom = ((vh - 2 * pad) / h).toFixed(3); el.style.top = '50%'; return; }
+    const at = parseFloat(getComputedStyle(el).top) || vh * 0.3, top = Math.max(pad + h / 2, Math.min(at, vh - pad - h / 2));
+    if (Math.abs(top - at) > 0.5) el.style.top = top + 'px';
+  }
+  addEventListener('resize', () => fitCard());
   // (zh / ja: a new word shows with its reading over it, whatever you know)
   const reveal = id => card(`<canvas width="140" height="140"></canvas><div class="big">${isC() ? CJK.html(LEX.src(id), { lang, ruby: 'always' }) : esc(LEX.form(id))}</div><div class="sub">A new word! Remember it… <b>E</b></div>`,
     { kind: 'reveal', icon: (LEX.item(id) || {}).icon, say: isC() ? LEX.src(id) : LEX.form(id) });
@@ -368,7 +380,26 @@ const UI = (() => {
     el.classList.add('hidden');
   }
   // ------------------------------------------------------------ small things
-  function toast(text) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; $('toasts').appendChild(el); setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3200); }
+  // (a full-screen panel is up: the radio quiz and the book club, the exam, the town hall / pen pals / jobs. A toast then waits,
+  // so it never lands on the panel's header, and shows once the panel closes, in order; one already showing when a panel
+  // opens goes back in line too)
+  const PANEL_UP = /(^|\s)(qz|ex|lf)-open(\s|$)/, heldToasts = [];
+  let heldT = 0;
+  const panelUp = () => PANEL_UP.test(document.body.className);
+  function holdToast(text) { if (!heldToasts.includes(text) && heldToasts.push(text) > 8) heldToasts.shift(); if (!heldT) heldT = setInterval(flushToasts, 400); }
+  function flushToasts() {
+    if (panelUp()) return;
+    clearInterval(heldT); heldT = 0;
+    heldToasts.splice(0).forEach((t, i) => setTimeout(() => toast(t), i * 350));
+  }
+  function toast(text) {
+    if (panelUp()) { holdToast(text); return; }
+    const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; $('toasts').appendChild(el); setTimeout(() => el.classList.add('out'), 2600); setTimeout(() => el.remove(), 3200);
+  }
+  try {
+    new MutationObserver(() => { const box = $('toasts'); if (!box || !panelUp()) return; for (const el of [...box.children]) { if (!el.classList.contains('out')) holdToast(el.textContent); el.remove(); } })
+      .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  } catch (e) { /* (no body yet: toasts only wait from the next one on) */ }
   function fade(to, ms = 600) { const el = $('fade'); el.style.transition = `opacity ${ms}ms`; el.style.opacity = to; return sleep(ms + 20); }
   async function chapter(title, sub) { const el = $('chapter'); el.innerHTML = `<div class="t">${esc(title)}</div><div class="s">${esc(sub || '')}</div>`; el.classList.add('on'); await sleep(2600); el.classList.remove('on'); await sleep(500); }
   // The goal line at the top left (HTML: it can hold woven words). kind: 'main' | 'side' (quests.js builds the MAIN / SIDE tag,
@@ -586,7 +617,7 @@ const UI = (() => {
   { const st = document.createElement('style'); st.textContent = '.settings .seg { display: flex; gap: 6px; } .settings .seg button { min-width: 0; } .settings .seg button.on { background: var(--ink); color: var(--paper); }'; document.head.appendChild(st); }
   return {
     get lang() { return lang; }, set lang(l) { lang = l; },
-    words, plainText, plainLen, partial, place, drawLine, teach, command, ask, choose, waitKey, card, reveal, page, letter, toast, fade, chapter, objective, compass, counters, journal, helpBar,
+    words, plainText, plainLen, partial, place, drawLine, teach, command, ask, choose, waitKey, card, fitCard, reveal, page, letter, toast, panelUp, fade, chapter, objective, compass, counters, journal, helpBar,
     weave, weaveParts, weavePlain, partsHTML, partsLen, noteWoven, swearText, savedChip, fullLine,
     sayText, speak, lineFor, LANGNAME,           // (zh / ja: what to speak, saying it with the right voice, lines that never fall back to Spanish)
     onSay: null, onWrong: null, onJournalClose: null, onQuitToTitle: null, onSaveNow: null, _lineKey: '', mimoName: 'Mimo',

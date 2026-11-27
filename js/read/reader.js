@@ -33,7 +33,7 @@ const READER = (() => {
 #rd .rd-body { overflow: auto; padding: 18px 28px 14px; font: 22px/1.65 Georgia, "Times New Roman", serif; flex: 1; min-height: 120px; }
 #rd .rd-s { border-radius: 6px; transition: background .2s, box-shadow .2s; }
 #rd .rd-s.lit { background: #fff0a0; box-shadow: 0 0 0 3px #fff0a0; }
-#rd .rd-w { cursor: pointer; border-radius: 4px; } #rd .rd-w:hover { background: rgba(33,164,147,.16); } #rd .rd-w.on { background: rgba(33,164,147,.32); }
+#rd .rd-w, .rd-taps .rd-w { cursor: pointer; border-radius: 4px; } #rd .rd-w:hover, .rd-taps .rd-w:hover { background: rgba(33,164,147,.16); } #rd .rd-w.on, .rd-taps .rd-w.on { background: rgba(33,164,147,.32); }
 #rd .w { color: inherit; font-weight: inherit; border-bottom: 0; cursor: pointer; } #rd .w:hover::after { display: none; }
 #rd .rd-sb { font-size: 12px; border: 0; background: transparent; opacity: .3; padding: 0 2px 0 3px; vertical-align: 3px; cursor: pointer; } #rd .rd-sb:hover { opacity: 1; }
 #rd .rd-en { display: none; font: italic 15px/1.4 "Segoe UI", sans-serif; opacity: .72; margin: 1px 0 9px; }
@@ -54,9 +54,9 @@ const READER = (() => {
 #rd .rd-meter { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 15px; font-weight: 800; margin: 12px 0 6px; }
 #rd .rd-meter i { flex: 0 0 180px; height: 12px; border-radius: 99px; background: rgba(43,34,53,.12); overflow: hidden; } #rd .rd-meter i b { display: block; height: 100%; background: #21a493; border-radius: 99px; }
 #rd .rd-meter small { flex-basis: 100%; font-weight: 500; font-size: 13px; opacity: .7; }
-#rd .rd-gloss { position: fixed; z-index: 14; background: #2b2235; color: #fffaf0; border-radius: 12px; padding: 8px 12px 9px; max-width: 300px; box-shadow: 0 6px 0 rgba(43,34,53,.25); font-family: "Segoe UI", sans-serif; }
-#rd .rd-gloss b { font: 800 20px Bahnschrift, "Segoe UI", sans-serif; } #rd .rd-gloss .f { font-size: 14px; margin-top: 2px; } #rd .rd-gloss small { display: block; opacity: .7; font-size: 12px; margin-top: 2px; }
-#rd .rd-gloss button { border: 1.5px solid #fffaf0; color: #fffaf0; background: transparent; border-radius: 7px; font-size: 12px; margin-left: 6px; padding: 0 6px; vertical-align: 3px; }
+#rd .rd-gloss, .rd-gloss.rd-free { position: fixed; z-index: 14; background: #2b2235; color: #fffaf0; border-radius: 12px; padding: 8px 12px 9px; max-width: 300px; box-shadow: 0 6px 0 rgba(43,34,53,.25); font-family: "Segoe UI", sans-serif; }
+#rd .rd-gloss b, .rd-gloss.rd-free b { font: 800 20px Bahnschrift, "Segoe UI", sans-serif; } #rd .rd-gloss .f, .rd-gloss.rd-free .f { font-size: 14px; margin-top: 2px; } #rd .rd-gloss small, .rd-gloss.rd-free small { display: block; opacity: .7; font-size: 12px; margin-top: 2px; }
+#rd .rd-gloss button, .rd-gloss.rd-free button { border: 1.5px solid #fffaf0; color: #fffaf0; background: transparent; border-radius: 7px; font-size: 12px; margin-left: 6px; padding: 0 6px; vertical-align: 3px; }
 #rd .rd-ask { padding: 14px 18px; overflow: auto; font-family: "Segoe UI", sans-serif; }
 #rd .rd-qrow { display: flex; gap: 12px; align-items: flex-start; }
 #rd .rd-mimo { flex: 0 0 54px; height: 54px; }
@@ -149,7 +149,7 @@ const READER = (() => {
 
   // ------------------------------------------------------------ words you can tap: es/pt/de through DICT.tokens, zh/ja by notation token
   const CJ_CHUNK = /(?:[^\s[\]]*\[[^\]]*\])+[^\s[\]]*|\S+/g;
-  const CJ_PUNCT = /^[。、，！？「」『』（）：；…—・,.!?:;()«»"“”]+$/;
+  const CJ_PUNCT = /^[。、，！？「」『』（）：；…—・,.!?:;()«»"“”《》〈〉【】～〜]+$/;
   function wordsHTML(src) {
     const text = fill(src), l = L();
     if (cj()) {
@@ -183,7 +183,7 @@ const READER = (() => {
   }
 
   // ------------------------------------------------------------ the gloss card (tap a word)
-  function hideGloss() { if (glossEl) { glossEl.remove(); glossEl = null; } if (root) root.querySelectorAll('.rd-w.on').forEach(x => x.classList.remove('on')); }
+  function hideGloss() { const was = !!glossEl; if (glossEl) { glossEl.remove(); glossEl = null; } document.querySelectorAll('.rd-w.on').forEach(x => x.classList.remove('on')); return was; }
   function glossOf(el, item) {
     const src = el.dataset.src, w = el.dataset.w, l = L();
     const surface = src ? CJK.chars(src, { lang: l }) : w;
@@ -199,17 +199,17 @@ const READER = (() => {
     if (g && g.id) try { DICT.met(g.id, 'gloss'); } catch (e) { /* */ }
     return { g, surface, src };
   }
-  function showGloss(el, item) {
+  function showGloss(el, item, host) {
     hideGloss();
     const { g, surface, src } = glossOf(el, item), l = L();
     el.classList.add('on');
     const read = src && cj() ? CJK.roman(src, { lang: l }) : '';
-    glossEl = document.createElement('div'); glossEl.className = 'rd-gloss';
+    glossEl = document.createElement('div'); glossEl.className = 'rd-gloss' + (host ? ' rd-free' : '');
     const pos = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb', pron: 'pronoun', det: 'determiner', prep: 'preposition', conj: 'conjunction', num: 'number', int: 'interjection', name: 'name', phrase: 'phrase', part: 'particle', cl: 'measure word' };
     glossEl.innerHTML = `<b>${esc(surface)}</b>${read && read !== surface ? ` <small style="display:inline">${esc(read)}</small>` : ''}<button data-say>🔊</button>`
       + (g ? `<div class="f">${esc(g.form || (g.lemma && g.lemma !== surface ? `${g.lemma}: ${g.en}` : g.en) || '')}</div>${g.pos ? `<small>${esc(pos[g.pos] || g.pos)}${g.lemma && !g.form ? '' : ''}</small>` : ''}`
         : `<div class="f">Not in ${esc(READ.mimo())}’s dictionary yet.</div><small>Guess from the sentence, or ask for the English.</small>`);
-    root.appendChild(glossEl);
+    (host || root).appendChild(glossEl);
     const r = el.getBoundingClientRect(), gw = glossEl.offsetWidth, gh = glossEl.offsetHeight;
     glossEl.style.left = Math.max(8, Math.min(innerWidth - gw - 8, r.left + r.width / 2 - gw / 2)) + 'px';
     glossEl.style.top = (r.top - gh - 10 > 8 ? r.top - gh - 10 : r.bottom + 10) + 'px';
@@ -217,6 +217,16 @@ const READER = (() => {
   }
   function wireTaps(container, item) {
     container.querySelectorAll('.rd-w').forEach(el => el.onclick = e => { e.stopPropagation(); click(); showGloss(el, item); });
+  }
+  // the same tap-to-gloss in another panel (the radio quiz's transcript, quiz.js): container holds wordsHTML words, and the
+  // card goes in o.host (that panel's root, so it closes with it); a tap anywhere else in the host hides it. o.item: a piece
+  // with its own glossary
+  function taps(container, o = {}) {
+    const host = o.host || document.body;
+    if (!container) return;
+    css(); container.classList.add('rd-taps');
+    container.querySelectorAll('.rd-w').forEach(el => el.onclick = e => { e.stopPropagation(); click(); showGloss(el, o.item || null, host); });
+    if (!host.__rdTaps) { host.__rdTaps = true; host.addEventListener('pointerdown', e => { if (glossEl && !glossEl.contains(e.target) && !(e.target.closest && e.target.closest('.rd-w'))) hideGloss(); }); }
   }
 
   // speech with highlighting; no voice → a note (once a panel) instead of a hang
@@ -657,8 +667,9 @@ const READER = (() => {
   }
 
   return {
-    book, page, listen, ask, shelf, close, coverCanvas, wordsHTML, markRead, markFix, speakNow,
+    book, page, listen, ask, shelf, close, coverCanvas, wordsHTML, markRead, markFix, speakNow, taps,
     get isOpen() { return openN > 0; },
+    get glossOpen() { return !!glossEl; }, hideGloss,
     _: { pages, coverView, coverage, askOne, choice, summary, glossOf, showGloss, hideGloss, open, words, get root() { return root; } },
   };
 })();
