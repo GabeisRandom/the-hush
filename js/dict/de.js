@@ -194,12 +194,14 @@ stehlen|stiehl|stahl|gestohlen|h
 steigen||stieg|gestiegen|s
 sterben|stirb|starb|gestorben|s
 stoßen|stöß|stieß|gestoßen|b
+streichen||strich|gestrichen|h
 streiten||stritt|gestritten|h
 tragen|träg|trug|getragen|h
 treffen|triff|traf|getroffen|h
 treiben||trieb|getrieben|h
 treten|tritt|trat|getreten|b
 trinken||trank|getrunken|h
+trügen||trog|getrogen|h
 tun|*|tat|getan|h
 vergessen|vergiss|vergaß|vergessen|h
 verlieren||verlor|verloren|h
@@ -207,10 +209,14 @@ verschwinden||verschwand|verschwunden|s
 wachsen|wächs|wuchs|gewachsen|s
 waschen|wäsch|wusch|gewaschen|h
 weisen||wies|gewiesen|h
+weichen||wich|gewichen|s
+werben|wirb|warb|geworben|h
 werden|*|wurde|geworden|s
 werfen|wirf|warf|geworfen|h
 wiegen||wog|gewogen|h
+winden||wand|gewunden|h
 wissen|*|wusste|gewusst|h
+zeihen||zieh|geziehen|h
 wollen|*|wollte|gewollt|h
 ziehen||zog|gezogen|b
 zwingen||zwang|gezwungen|h`;
@@ -223,7 +229,7 @@ zwingen||zwang|gezwungen|h`;
   const IMP = { sein: ['sei', 'seid'], haben: ['hab', 'habt'], werden: ['werd', 'werdet'], tun: ['tu', 'tut'], wissen: ['wisse', 'wisst'] };
   const KII = { sein: 'wär', haben: 'hätt', werden: 'würd', können: 'könnt', müssen: 'müsst', dürfen: 'dürft', sollen: 'sollt', wollen: 'wollt',
     mögen: 'möcht', wissen: 'wüsst', tun: 'tät', bringen: 'brächt', denken: 'dächt', brauchen: 'bräucht' };
-  const INSEP = ['über', 'unter', 'miss', 'zer', 'emp', 'ent', 'ver', 'be', 'ge', 'er'];
+  const INSEP = ['wider', 'über', 'unter', 'miss', 'zer', 'emp', 'ent', 'ver', 'be', 'ge', 'er'];
   const PN = ['1s', '2s', '3s', '1p', '2p', '3p'];
   // the verb's base for STRONG: itself, or after an inseparable prefix (verstehen → stehen)
   function baseOf(v) {
@@ -251,8 +257,9 @@ zwingen||zwang|gezwungen|h`;
       const ch = S && S.ps ? pre + S.ps : stem;
       const du = ch + (/(s|ß|x|z)$/.test(ch) ? 't' : (tStem && ch === stem) ? 'est' : 'st');
       const er = ch !== stem ? (/t$/.test(ch) ? ch : ch + 't') : stem + (tStem ? 'et' : 't');
-      add(elnern ? stem.replace(/el$/, 'le') : stem + 'e', 'pres.ind.1s');
-      if (elnern && /el$/.test(stem)) add(stem + 'e', 'pres.ind.1s');
+      // (-eln: ich sammle, sammele; -ern: ich wandere, ändere, erinnere; DX-B2: -ern gave «wander», so «Ich wandere gern» got a conj fix)
+      if (elnern && /el$/.test(stem)) { add(stem.replace(/el$/, 'le'), 'pres.ind.1s'); add(stem + 'e', 'pres.ind.1s'); }
+      else add(stem + 'e', 'pres.ind.1s');
       add(ch === stem && sStem ? stem + 't' : du, 'pres.ind.2s');
       add(er, 'pres.ind.3s');
       add(v, 'pres.ind.1p'); add(stem + (tStem ? 'et' : 't'), 'pres.ind.2p'); add(v, 'pres.ind.3p');
@@ -525,6 +532,12 @@ zwingen||zwang|gezwungen|h`;
       for (let k = cl.s; k <= cl.e; k++) {
         if (k === w.i) continue;
         const x = rd(W, k); if (!x || x.e.pos !== 'v') continue;
+        // (DX-B2) «Ich bin enttäuscht / überrascht / verletzt», «Das ist bestimmt richtig»: sein + a participle whose verb takes
+        // haben, when the word is also an adjective or an adverb, is that adjective or adverb (a state, not the Perfekt)
+        if (x.f.form === 'part' && c.e.lemma === 'sein' && auxOf(x.e.sep ? x.e.base : x.e.lemma, x.e) === 'h') {
+          const st = W[k]._c.find(y => y.e.pos === 'adj' || y.e.pos === 'adv');
+          if (st) { W[k]._r = st; continue; }
+        }
         if (x.f.form === 'part' && /^(haben|sein)$/.test(c.e.lemma)) { w.aux = 'perf'; W[k].perf = true; break; }
         if (x.f.form === 'inf' && c.e.lemma === 'werden') { w.aux = c.f.k2 ? 'hypo' : 'fut'; break; }
         if (x.f.form === 'inf' && MODALS.has(c.e.lemma)) { w.aux = 'modal'; break; }
@@ -3292,6 +3305,1069 @@ Botschaft|f-en|message; embassy
 Empfang|m¨e|reception, welcome
 stumm|a|mute, silent
 `);
+  LISTS.push(`
+// work and careers
+@4 work
+Arbeitslosigkeit|f0|unemployment|-
+Streik|m-s|strike (from work)
+Gewerkschaft|f-en|labor union
+Arbeitszeit|f-en|working hours
+Überstunde|f-n|hour of overtime (Überstunden: overtime)
+Beförderung|f-en|promotion
+Gehaltserhöhung|f-en|raise (in pay)
+Ausbildung|f-en|training, apprenticeship
+Weiterbildung|f-en|further training
+Praktikum|n:Praktika|internship
+Stipendium|n:Stipendien|scholarship, grant
+Ruhestand|m0|retirement
+Kündigung|f-en|notice (of dismissal or resignation)
+Frist|f-en|deadline, period
+Bericht|m-e|report
+Budget|n-s|budget
+Kostenvoranschlag|m¨e|estimate (a quote)
+Leistung|f-en|performance; achievement
+Produktivität|f0|productivity
+Effizienz|f0|efficiency
+Führung|f-en|leadership; management; guided tour
+Verhandlung|f-en|negotiation
+Homeoffice|n-s|working from home
+Zentrale|f-n|headquarters
+Filiale|f-n|branch (of a company, a store)
+Handel|m0|trade, commerce
+Arbeitsmarkt|m¨e|job market
+Konkurrenz|f0|competition
+Voraussetzung|f-en|requirement, prerequisite
+Teilzeit|f0|part-time (in Teilzeit)
+Vollzeit|f0|full-time (in Vollzeit)
+Arbeitsplatz|m¨e|workplace; job
+Abteilung|f-en|department
+Besprechung|f-en|meeting
+Unternehmen|n-|company, business
+@4 work,people
+Manager|m-|manager|per f:Managerin
+Leiter|m-|head, manager (of a team, a department)|per f:Leiterin
+Direktor|m-en|director; principal|per f:Direktorin
+Unternehmer|m-|entrepreneur, business owner|per f:Unternehmerin
+Arbeiter|m-|worker|per f:Arbeiterin
+Arbeitnehmer|m-|employee|per f:Arbeitnehmerin
+Arbeitgeber|m-|employer|per f:Arbeitgeberin
+Techniker|m-|technician|per f:Technikerin
+Mechaniker|m-|mechanic|per f:Mechanikerin
+Chirurg|m-en|surgeon|per wk f:Chirurgin
+Psychologe|m-n|psychologist|per wk f:Psychologin
+Experte|m-n|expert, specialist|per wk f:Expertin
+Forscher|m-|researcher|per f:Forscherin
+Wissenschaftler|m-|scientist|per f:Wissenschaftlerin
+Architekt|m-en|architect|per wk f:Architektin
+Fotograf|m-en|photographer|per wk f:Fotografin
+Reporter|m-|reporter|per f:Reporterin
+Korrespondent|m-en|correspondent|per wk f:Korrespondentin
+Schauspieler|m-|actor/actress|per f:Schauspielerin
+Komponist|m-en|composer|per wk f:Komponistin
+Klempner|m-|plumber|per f:Klempnerin
+Elektriker|m-|electrician|per f:Elektrikerin
+Maurer|m-|bricklayer|per f:Maurerin
+Richter|m-|judge|per f:Richterin
+Bürgermeister|m-|mayor|per f:Bürgermeisterin
+@4 people
+Kandidat|m-en|candidate|per wk f:Kandidatin
+Bewerber|m-|applicant|per f:Bewerberin
+Praktikant|m-en|intern|per wk f:Praktikantin
+Azubi|m-s|apprentice, trainee|per
+@4 work
+beruflich|a|professional, work-related|noCmp
+geschäftlich|a|business, on business|noCmp
+effizient|a|efficient|+
+wirksam|a|effective|+
+wettbewerbsfähig|a|competitive|noCmp
+anspruchsvoll|a|demanding
+qualifiziert|a|qualified|noCmp
+zuständig|a|responsible (for), in charge|noCmp
+bewerben|v|(sich) apply (for a job)
+befördern|v|promote; transport
+leiten|v|lead, run, manage
+verhandeln|v|negotiate
+entlassen|v|dismiss, lay off
+fordern|v|demand
+erfordern|v|require
+// money and shopping
+@4 money,shop
+Ersparnisse|pl|savings
+Investition|f-en|investment
+Gewinn|m-e|profit; prize
+Verlust|m-e|loss
+Einkommen|n-|income
+Ausgaben|pl|expenses
+Hypothek|f-en|mortgage
+Zins|m-en|interest (die Zinsen)
+Gebühr|f-en|fee
+Rate|f-n|installment; rate
+Tarif|m-e|rate, tariff
+Bankkonto|n:Bankkonten|bank account
+Kreditkarte|f-n|credit card
+Bargeld|n0|cash
+Geldautomat|m-en|ATM|wk
+Überweisung|f-en|bank transfer
+Verbraucher|m-|consumer|per f:Verbraucherin
+Verbrauch|m0|consumption
+Rabatt|m-e|discount
+Schlussverkauf|m¨e|clearance sale
+Garantie|f-n|guarantee, warranty
+Umtausch|m0|exchange (of goods)
+Rückgabe|f-n|return (of goods)
+Erstattung|f-en|refund
+Beschwerde|f-n|complaint
+Marke|f-n|brand; stamp
+Qualität|f-en|quality
+Menge|f-n|amount, quantity; crowd
+Produkt|n-e|product
+Dienstleistung|f-en|service
+Lieferung|f-en|delivery
+Bestellung|f-en|order
+Versand|m0|shipping
+Einkaufszentrum|n:Einkaufszentren|shopping mall|place
+Umkleidekabine|f-n|fitting room
+kostspielig|a|costly
+finanziell|a|financial|noCmp
+finanzieren|v|finance, fund
+handeln|v|act; trade; haggle
+verschwenden|v|waste
+verbrauchen|v|consume, use up
+liefern|v|deliver
+um+tauschen|v|exchange (goods)
+ab+heben|v|withdraw (money)
+`);
+  LISTS.push(`
+// health, the body and medicine
+@3 health
+heilen|v|heal, cure
+niesen|v|sneeze
+wiegen|v|weigh
+verletzen|v|injure, hurt
+@4 health
+Symptom|n-e|symptom
+Diagnose|f-n|diagnosis
+Therapie|f-n|therapy
+Operation|f-en|operation
+Klinik|f-en|clinic|place
+Notaufnahme|f-n|emergency room|place
+Krankenwagen|m-|ambulance
+Dosis|f:Dosen|dose
+Hustensaft|m¨e|cough syrup
+Antibiotikum|n:Antibiotika|antibiotic
+Vitamin|n-e|vitamin
+Allergie|f-n|allergy
+Infektion|f-en|infection
+Virus|n:Viren|virus
+Bakterie|f-n|bacterium, germ
+Epidemie|f-n|epidemic
+Pandemie|f-n|pandemic
+Ansteckung|f-en|infection, contagion
+Verletzung|f-en|injury
+Bruch|m¨e|fracture; break
+Bluterguss|m¨e|bruise
+Verbrennung|f-en|burn
+Schwindel|m0|dizziness
+Übelkeit|f0|nausea
+Blutdruck|m0|blood pressure
+Schlaflosigkeit|f0|insomnia
+Depression|f-en|depression|-
+psychische Gesundheit|phrase|mental health
+Ernährung|f0|nutrition, diet
+Eiweiß|n-e|protein
+Fett|n-e|fat
+Kalorie|f-n|calorie
+Übergewicht|n0|being overweight
+Schwangerschaft|f-en|pregnancy
+Behinderung|f-en|disability
+Vorbeugung|f0|prevention
+Untersuchung|f-en|examination, checkup
+Röntgenbild|n-er|X-ray
+Spritze|f-n|injection, shot; syringe
+Genesung|f0|recovery
+Erschöpfung|f0|exhaustion
+Schweiß|m0|sweat
+Juckreiz|m0|itch
+Stich|m-e|sting, bite
+Krankenversicherung|f-en|health insurance
+Erste Hilfe|phrase|first aid
+@4 health,people
+Patient|m-en|patient|per wk f:Patientin
+@4 health,body
+Leber|f-n|liver
+Niere|f-n|kidney
+Hüfte|f-n|hip
+Oberschenkel|m-|thigh
+Brust|f¨e|chest; breast
+Taille|f-n|waist
+Nerv|m-en|nerve (die Nerven)
+@4 health
+allergisch|a|allergic|noCmp
+ansteckend|a|contagious|noCmp
+schwindlig|a|dizzy
+schwanger|a|pregnant|noCmp
+chronisch|a|chronic|noCmp
+akut|a|acute|noCmp
+körperlich|a|physical|noCmp
+seelisch|a|mental, emotional|noCmp
+psychisch|a|psychological, mental|noCmp
+medizinisch|a|medical|noCmp
+untersuchen|v|examine
+operieren|v|operate (on)
+impfen|v|vaccinate
+verschreiben|v|prescribe
+an+stecken|v|infect; (sich) catch (an illness)
+erholen|v|(sich) recover, rest
+verstauchen|v|sprain
+ohnmächtig werden|phrase|faint
+zu+nehmen|v|gain weight; increase
+ab+nehmen|v|lose weight; decrease; take off
+// the environment, nature and climate
+@4 nature,weather
+Erderwärmung|f0|global warming
+Treibhauseffekt|m0|greenhouse effect
+Emission|f-en|emission
+Kohlendioxid|n0|carbon dioxide
+Brennstoff|m-e|fuel
+Erdöl|n0|oil, petroleum
+Benzin|n0|gasoline
+Gas|n-e|gas
+Sonnenenergie|f0|solar energy
+Solaranlage|f-n|solar panels (the system)
+Windkraft|f0|wind power
+Abfall|m¨e|waste, trash
+Plastik|n0|plastic
+Pappe|f-n|cardboard
+Verpackung|f-en|packaging
+Verschwendung|f-en|waste
+Nachhaltigkeit|f0|sustainability
+Ökosystem|n-e|ecosystem
+Artenvielfalt|f0|biodiversity
+Aussterben|n0|extinction
+vom Aussterben bedroht|phrase|endangered
+Lebensraum|m¨e|habitat
+Tierwelt|f0|wildlife
+Pflanzenwelt|f0|plant life
+Abholzung|f-en|deforestation
+Brand|m¨e|fire (a building on fire)
+Waldbrand|m¨e|forest fire
+Überschwemmung|f-en|flood
+Dürre|f-n|drought
+Katastrophe|f-n|catastrophe, disaster|-
+Naturkatastrophe|f-n|natural disaster|-
+Atmosphäre|f-n|atmosphere
+Ozonschicht|f0|ozone layer
+Ozean|m-e|ocean
+Pol|m-e|pole (der Nordpol: the North Pole)
+Niveau|n-s|level
+Meeresspiegel|m0|sea level
+Trinkwasser|n0|drinking water
+Mangel|m¨|shortage, lack
+öffentliche Verkehrsmittel|phrase|public transportation
+Kampagne|f-n|campaign
+Bewusstsein|n0|awareness, consciousness
+Naturschutz|m0|nature conservation
+Schaden|m¨|damage, harm
+Bedrohung|f-en|threat|-
+Landwirtschaft|f0|agriculture
+Viehzucht|f0|livestock farming
+Pestizid|n-e|pesticide
+Ebene|f-n|plain; level|place
+Hochebene|f-n|plateau|place
+Gebirge|n-|mountain range|place
+Korallenriff|n-e|coral reef|place
+@4 people
+Umweltschützer|m-|environmentalist|per f:Umweltschützerin
+Aktivist|m-en|activist|per wk f:Aktivistin
+Einwohner|m-|inhabitant|per f:Einwohnerin
+@4 nature,weather
+erneuerbar|a|renewable|noCmp
+nachhaltig|a|sustainable|+
+knapp|a|scarce; tight; barely
+reichlich|a|plenty, abundant
+schädlich|a|harmful|-
+giftig|a|poisonous, toxic|-
+rein#adj|a|pure, clean
+fruchtbar|a|fertile
+tropisch|a|tropical|noCmp
+mild|a|mild
+regnerisch|a|rainy
+biologisch|a|organic; biological|noCmp
+landwirtschaftlich|a|agricultural|noCmp
+bewahren|v|preserve
+erhalten|v|preserve; receive
+beschädigen|v|damage
+bedrohen|v|threaten
+aus+sterben|v.s|die out
+bewohnen|v|inhabit
+wieder+verwenden|v|reuse
+ab+holzen|v|cut down (forests)
+`);
+  LISTS.push(`
+// technology and the internet
+@3 tech
+Technik|f-en|technology; technique
+Information|f-en|information
+Maschine|f-n|machine
+@4 tech
+Technologie|f-n|technology
+Gerät|n-e|device, appliance
+Software|f-s|software
+Datei|f-en|file
+Ordner|m-|folder
+Dokument|n-e|document
+Profil|n-e|profile
+soziale Netzwerke|phrase|social media
+soziales Netzwerk|phrase|social network
+Browser|m-|browser
+Suchmaschine|f-n|search engine
+Link|m-s|link
+Download|m-s|download
+Beitrag|m¨e|post; contribution
+Kommentar|m-e|comment
+Verbindung|f-en|connection
+WLAN|n-s|wifi
+Daten|pl|data
+Datenbank|f-en|database
+Intelligenz|f0|intelligence
+künstliche Intelligenz|phrase|artificial intelligence
+Roboter|m-|robot
+Algorithmus|m:Algorithmen|algorithm
+Code|m-s|code
+Programmierung|f-en|programming
+Update|n-s|update
+Drucker|m-|printer
+Tablet|n-s|tablet
+Laptop|m-s|laptop
+Speicher|m-|storage, memory
+Datenschutz|m0|data protection, privacy
+Belästigung|f-en|harassment|-
+Mobbing|n0|bullying|-
+Falschmeldung|f-en|fake news (a false report)
+Videoanruf|m-e|video call
+Taste|f-n|key (on a keyboard); button
+Klick|m-s|click
+Innovation|f-en|innovation
+Fortschritt|m-e|progress, breakthrough
+technisch|a|technical|noCmp
+digital|a|digital|noCmp
+virtuell|a|virtual|noCmp
+elektronisch|a|electronic|noCmp
+elektrisch|a|electric|noCmp
+automatisch|a|automatic|noCmp
+innovativ|a|innovative|+ noCmp
+kabellos|a|wireless|noCmp
+online|adv|online
+herunter+laden|v|download
+hoch+laden|v|upload
+veröffentlichen|v|publish
+posten|v|post (online)
+abonnieren|v|subscribe
+programmieren|v|program
+installieren|v|install
+aktualisieren|v|update
+neu+starten|v|restart
+löschen|v|delete; put out (a fire)
+drucken|v|print
+scannen|v|scan
+chatten|v|chat (online)
+surfen|v|surf (the internet)
+klicken|v|click
+speichern|v|save (a file)
+@4 tech,people
+Nutzer|m-|user|per f:Nutzerin
+Follower|m-|follower|per
+// news and media
+@4 media
+Presse|f0|the press
+Medien|pl|the media
+Schlagzeile|f-n|headline
+Reportage|f-n|report, feature (story)
+Redaktion|f-en|newsroom, the editors
+Publikum|n0|audience
+Zensur|f-en|censorship|-
+Meinungsfreiheit|f0|freedom of speech
+öffentliche Meinung|phrase|public opinion
+Umfrage|f-n|survey, poll
+Statistik|f-en|statistics
+Skandal|m-e|scandal|-
+Gerücht|n-e|rumor
+Ereignis|n:Ereignisse|event
+Veranstaltung|f-en|event
+Dokumentarfilm|m-e|documentary
+Premiere|f-n|premiere
+Kritik|f-en|criticism; review
+Hauptfigur|f-en|main character
+umstritten|a|controversial|noCmp
+subjektiv|a|subjective|noCmp
+objektiv|a|objective|noCmp
+zuverlässig|a|reliable|+
+kritisch|a|critical
+befragen|v|interview, question
+verbreiten|v|spread
+übertragen|v|broadcast; transfer
+@4 media,people
+Zuschauer|m-|viewer, spectator|per f:Zuschauerin
+// B1 words that were missing (some of them the game already used, read until now as bare quest words)
+@2
+steigen|v|climb; rise
+stehlen|v|steal
+hübsch|a|pretty
+Holz|n¨er|wood
+sonnig|a|sunny
+bewölkt|a|cloudy|noCmp
+@3
+laden|v|load; charge (a phone)
+stecken|v|put, stick; be (stuck)
+verwenden|v|use
+starten|v|start
+begleiten|v|accompany
+@4
+zünden|v|ignite
+@3
+Handlung|f-en|action; plot
+Aktivität|f-en|activity
+Aufmerksamkeit|f-en|attention
+Kontrolle|f-n|control; check
+Kosten|pl|costs
+Zustand|m¨e|state, condition
+Mehrheit|f-en|majority
+Modell|n-e|model
+Gegenstand|m¨e|object
+Zeitraum|m¨e|period
+Position|f-en|position
+Tatsache|f-n|fact
+Situation|f-en|situation
+Verkehrsmittel|n-|means of transport
+System|n-e|system
+Prozess|m-e|process; trial
+Lächeln|n0|smile|+
+Witz|m-e|joke
+Versprechen|n-|promise
+Wettbewerb|m-e|competition, contest
+Möglichkeit|f-en|possibility
+Fantasie|f-n|imagination
+Loch|n¨er|hole
+Flagge|f-n|flag
+Tropfen|m-|drop
+Stolz|m0|pride
+Erleichterung|f-en|relief|+
+Dankbarkeit|f0|gratitude|+
+Panik|f0|panic|-
+@3 people
+Präsident|m-en|president|per wk f:Präsidentin
+@3
+vollständig|a|complete|noCmp
+menschlich|a|human|noCmp
+quadratisch|a|square|noCmp
+ideal|a|ideal|noCmp
+elegant|a|elegant
+positiv|a|positive|+ noCmp
+negativ|a|negative|- noCmp
+exakt|a|exact|noCmp
+real|a|real|noCmp
+allgemein|a|general|noCmp
+ausreichend|a|enough, sufficient|noCmp
+sorgfältig|a|careful
+blass|a|pale
+feucht|a|damp, humid
+niedrig|a|low
+steil|a|steep
+staubig|a|dusty
+stur|a|stubborn
+großartig|a|great, terrific|+
+erleichtert|a|relieved|noCmp +
+locker|a|loose; relaxed
+golden|a|golden|noCmp
+gleichzeitig|a|simultaneous; at the same time|noCmp
+durchsichtig|a|transparent|noCmp
+taub|a|deaf; numb|noCmp
+rostig|a|rusty|noCmp
+schweigsam|a|quiet, silent (a person)
+belebt|a|busy, lively (a street)|noCmp
+beeinflussen|v|influence
+betreffen|v|concern, affect
+bestätigen|v|confirm
+enthalten|v|contain, include
+verzeihen|v|forgive
+landen|v.s|land
+blühen|v|bloom
+glänzen|v|shine
+fegen|v|sweep
+bedecken|v|cover
+schmücken|v|decorate
+an+zünden|v|light (a fire, a candle)
+auf+hängen|v|hang up
+auf+bewahren|v|keep, store
+um+fallen|v.s|fall over
+überqueren|v|cross
+vorbei+gehen|v.s|go past, pass
+los+lassen|v|let go
+begraben|v|bury
+versinken|v.s|sink
+trocknen|v|dry
+ab+trocknen|v|dry (off)
+@4
+Minderheit|f-en|minority
+Nostalgie|f0|nostalgia
+`);
+  LISTS.push(`
+// society and community (local government, rights, volunteering)
+@3 home
+Haushalt|m-e|household; budget
+@4
+Gemeinde|f-n|municipality; community, parish
+Gemeinderat|m¨e|city council
+Staatsangehörigkeit|f-en|citizenship, nationality
+Menschenrechte|pl|human rights
+Verpflichtung|f-en|obligation, commitment
+Ehrenamt|n¨er|volunteer work
+Organisation|f-en|organization
+Verband|m¨e|association
+Stiftung|f-en|foundation
+Wohltätigkeit|f0|charity
+Spende|f-n|donation
+Solidarität|f0|solidarity|+
+Diskriminierung|f-en|discrimination|-
+Rassismus|m0|racism|-
+Vorurteil|n-e|prejudice|-
+Toleranz|f0|tolerance|+
+Vielfalt|f0|diversity
+Inklusion|f0|inclusion
+Einwanderung|f-en|immigration
+Integration|f-en|integration
+Zusammenleben|n0|living together
+Wohnungsnot|f0|housing shortage
+Demonstration|f-en|demonstration, protest
+Protest|m-e|protest
+Beteiligung|f-en|participation
+Behörde|f-n|authority, government office
+Einrichtung|f-en|institution; furnishings
+öffentlicher Dienst|phrase|public service
+Lebensqualität|f0|quality of life
+Lebensstandard|m-s|standard of living
+Infrastruktur|f-en|infrastructure
+solidarisch|a|supportive, showing solidarity|noCmp
+tolerant|a|tolerant|+
+städtisch|a|municipal, urban|noCmp
+ehrenamtlich|a|voluntary, unpaid|noCmp
+ein+wandern|v.s|immigrate
+aus+wandern|v.s|emigrate
+demonstrieren|v|demonstrate, protest
+protestieren|v|protest
+diskriminieren|v|discriminate
+@4 people
+Einwanderer|m-|immigrant|per f:Einwanderin
+Flüchtling|m-e|refugee|per
+// everyday law (contracts, fines, permits)
+@4
+Kriminalität|f0|crime (in general)|-
+Verbrechen|n-|crime|-
+Straftat|f-en|criminal offense|-
+Diebstahl|m¨e|theft|-
+Einbruch|m¨e|burglary|-
+Anzeige|f-n|report (to the police); ad
+Strafe|f-n|punishment; fine
+Bußgeld|n-er|fine (for a traffic offense)
+Erlaubnis|f:Erlaubnisse|permission, permit
+Genehmigung|f-en|permit, approval
+Gerichtsverfahren|n-|lawsuit, trial
+Urteil|n-e|verdict; judgment
+Klage|f-n|lawsuit; complaint
+Regelung|f-en|regulation, rule
+Vorschrift|f-en|rule, regulation
+Bürokratie|f-n|bureaucracy
+Antrag|m¨e|application (form)
+Personalausweis|m-e|ID card
+Aufenthaltsgenehmigung|f-en|residence permit
+Visum|n:Visa|visa
+Versicherung|f-en|insurance
+Kaution|f-en|security deposit
+Klausel|f-n|clause
+Geschwindigkeitsbegrenzung|f-en|speed limit
+legal|a|legal|noCmp
+illegal|a|illegal|- noCmp
+schuldig|a|guilty|- noCmp
+unschuldig|a|innocent|noCmp
+verpflichtend|a|compulsory|noCmp
+an+zeigen|v|report (to the police); show
+bestrafen|v|punish
+verklagen|v|sue
+beantragen|v|apply for
+klagen|v|complain; sue
+@4 people
+Täter|m-|culprit, offender|per f:Täterin
+Opfer|n-|victim|per
+Zeuge|m-n|witness|per wk f:Zeugin
+Mieter|m-|tenant|per f:Mieterin
+Vermieter|m-|landlord|per f:Vermieterin
+Besitzer|m-|owner|per f:Besitzerin
+// education and science
+@4 school
+Grundschule|f-n|elementary school|place
+Gymnasium|n:Gymnasien|high school (academic track)|place
+Abitur|n0|high-school diploma (the Abitur)
+Bachelor|m-s|bachelor’s degree
+Master|m-|master’s degree
+Promotion|f-en|doctorate, PhD
+Abschluss|m¨e|degree; graduation
+Hochschule|f-n|university, college|place
+Fakultät|f-en|faculty, school (of a university)
+Semester|n-|semester
+Studiengebühr|f-en|tuition fee
+Notizen|pl|notes
+Zusammenfassung|f-en|summary
+Aufsatz|m¨e|essay
+Abschlussarbeit|f-en|thesis
+Durchschnitt|m-e|average
+Vorlesung|f-en|lecture
+Debatte|f-n|debate
+Methode|f-n|method
+Theorie|f-n|theory
+Experiment|n-e|experiment
+Labor|n-e|laboratory|place
+Entdeckung|f-en|discovery
+Schlussfolgerung|f-en|conclusion
+Beweis|m-e|proof, evidence
+Formel|f-n|formula
+Berechnung|f-en|calculation
+Chemie|f0|chemistry
+Physik|f0|physics
+Biologie|f0|biology
+Philosophie|f0|philosophy
+Literatur|f-en|literature
+Psychologie|f0|psychology
+Informatik|f0|computer science
+Ingenieurwesen|n0|engineering
+Begriff|m-e|concept; term
+Definition|f-en|definition
+Universum|n0|universe
+Galaxie|f-n|galaxy
+Zelle|f-n|cell
+Evolution|f0|evolution
+akademisch|a|academic|noCmp
+schulisch|a|school, educational|noCmp
+wissenschaftlich|a|scientific|noCmp
+intellektuell|a|intellectual|noCmp
+ein+schreiben|v|(sich) enroll, sign up
+auswendig lernen|phrase|learn by heart
+analysieren|v|analyze
+definieren|v|define
+debattieren|v|debate
+argumentieren|v|argue (make a case)
+@4 school,people
+Nachhilfelehrer|m-|tutor|per f:Nachhilfelehrerin
+`);
+  LISTS.push(`
+// arguing and explaining: the linking words and adverbs
+@4
+erstens|adv|first(ly)|adverbial
+zweitens|adv|second(ly)|adverbial
+drittens|adv|third(ly)|adverbial
+einerseits|adv|on the one hand|adverbial
+andererseits|adv|on the other hand|adverbial
+zusammenfassend|adv|in summary|adverbial
+abschließend|adv|in conclusion|adverbial
+aufgrund|prep|because of, due to (+ genitive)|case:gen
+bezüglich|prep|regarding (+ genitive)|case:gen
+anstatt|prep|instead of|case:gen
+ohne dass|phrase|without (+ a clause)
+meiner Ansicht nach|phrase|in my view
+aus meiner Sicht|phrase|from my point of view
+im Großen und Ganzen|phrase|by and large
+insbesondere|adv|in particular, especially
+heutzutage|adv|nowadays|adverbial
+ohnehin|adv|anyway
+letztendlich|adv|in the end, ultimately|adverbial
+selbstverständlich|adv|of course, naturally
+nicht einmal|phrase|not even
+eher|adv|rather; sooner
+mehr oder weniger|phrase|more or less
+ebenfalls|adv|likewise, also
+offenbar|adv|apparently, evidently
+angeblich|adv|supposedly, allegedly
+anscheinend|adv|apparently
+relativ|adv|relatively
+äußerst|adv|extremely
+grundsätzlich|adv|basically, in principle
+lediglich|adv|merely, only
+ehrlich gesagt|phrase|to be honest
+offen gesagt|phrase|frankly
+definitiv|adv|definitely
+allmählich|adv|gradually
+konkret|a|concrete, specific
+langfristig|a|long-term|noCmp
+kurzfristig|a|short-term; at short notice|noCmp
+eindeutig|a|clear, unambiguous|noCmp
+praktisch|a|practical; practically
+ständig|a|constant; constantly|noCmp
+// abstract ideas
+Aspekt|m-e|aspect
+Faktor|m-en|factor
+Element|n-e|element
+Angelegenheit|f-en|matter, affair
+Bedingung|f-en|condition
+Umstand|m¨e|circumstance
+Zusammenhang|m¨e|context, connection
+Wirklichkeit|f-en|reality
+Realität|f-en|reality
+Kriterium|n:Kriterien|criterion
+Überzeugung|f-en|conviction, belief
+Ethik|f0|ethics
+Würde|f0|dignity
+Privileg|n:Privilegien|privilege
+Einfluss|m¨e|influence
+Auswirkung|f-en|impact, effect
+Ursprung|m¨e|origin
+Motiv|n-e|motive
+Absicht|f-en|intention
+Errungenschaft|f-en|achievement|+
+Herausforderung|f-en|challenge
+Hindernis|n:Hindernisse|obstacle
+Tendenz|f-en|tendency, trend
+Trend|m-s|trend
+Routine|f-n|routine
+Veränderung|f-en|change
+Wandel|m0|change, transformation
+Struktur|f-en|structure
+Eigenschaft|f-en|characteristic, quality
+Merkmal|n-e|feature, characteristic
+Schwäche|f-n|weakness
+Stärke|f-n|strength
+Tugend|f-en|virtue|+
+Priorität|f-en|priority
+Bedürfnis|n:Bedürfnisse|need
+Notwendigkeit|f-en|necessity
+Alternative|f-n|alternative
+Vorschlag|m¨e|suggestion, proposal
+Einigung|f-en|agreement
+Meinungsverschiedenheit|f-en|disagreement
+Gleichgewicht|n0|balance
+Harmonie|f-n|harmony|+
+Chaos|n0|chaos
+Unordnung|f0|mess, disorder
+@4 feeling
+Selbstwertgefühl|n0|self-esteem
+Selbstbewusstsein|n0|self-confidence
+Humor|m0|humor
+Wut|f0|rage, anger|-
+Furcht|f0|fear|-
+Eifersucht|f0|jealousy|-
+Zufriedenheit|f0|satisfaction|+
+Enttäuschung|f-en|disappointment|-
+Frust|m0|frustration|-
+Begeisterung|f0|enthusiasm|+
+Leidenschaft|f-en|passion
+Neugier|f0|curiosity
+Bewunderung|f0|admiration
+Mitgefühl|n0|compassion, sympathy|+
+Unsicherheit|f-en|insecurity, uncertainty|-
+Motivation|f-en|motivation
+Inspiration|f-en|inspiration
+Einsamkeit|f0|loneliness|-
+Sehnsucht|f¨e|longing
+`);
+  LISTS.push(`
+// feelings, opinions and judgments: adjectives
+@4 feeling
+verzweifelt|a|desperate, in despair|noCmp -
+überfordert|a|overwhelmed|noCmp -
+entmutigt|a|discouraged|noCmp -
+optimistisch|a|optimistic|+
+pessimistisch|a|pessimistic|-
+verständnisvoll|a|understanding|+
+empfindlich|a|sensitive (to cold, to criticism)
+sensibel|a|sensitive (emotionally)
+reif|a|mature; ripe
+unreif|a|immature; unripe|-
+respektvoll|a|respectful|+
+bescheiden|a|modest, humble|+
+arrogant|a|arrogant|-
+ehrgeizig|a|ambitious
+treu|a|loyal, faithful|+
+loyal|a|loyal|+
+verantwortungslos|a|irresponsible|-
+@4
+realistisch|a|realistic
+logisch|a|logical|noCmp
+schlüssig|a|coherent, conclusive
+ausgewogen|a|balanced
+flexibel|a|flexible
+würdig|a|worthy, dignified
+wertvoll|a|valuable|+
+wesentlich|a|essential, significant
+grundlegend|a|fundamental|noCmp
+unverzichtbar|a|indispensable|noCmp
+relevant|a|relevant
+bedeutend|a|significant, important
+beträchtlich|a|considerable
+bemerkenswert|a|remarkable
+angemessen|a|appropriate, adequate
+geeignet|a|suitable|noCmp
+sinnvoll|a|sensible, meaningful|+
+absurd|a|absurd|-
+lächerlich|a|ridiculous|-
+unvermeidlich|a|inevitable|noCmp
+unerwartet|a|unexpected|noCmp
+vorhersehbar|a|predictable
+überraschend|a|surprising
+beeindruckend|a|impressive|+
+aufregend|a|exciting|+
+rührend|a|touching, moving
+besorgniserregend|a|worrying|-
+alarmierend|a|alarming|-
+heikel|a|delicate, tricky
+abstrakt|a|abstract
+spezifisch|a|specific|noCmp
+präzise|a|precise
+authentisch|a|authentic
+original|a|original|noCmp
+üblich|a|usual, customary
+alltäglich|a|everyday|noCmp
+entgegengesetzt|a|opposite|noCmp
+gegenseitig|a|mutual|noCmp
+individuell|a|individual|noCmp
+kollektiv|a|collective|noCmp
+// arguing, explaining and feeling: verbs
+behaupten|v|claim, state
+zu+geben|v|admit
+klären|v|clarify
+rechtfertigen|v|justify
+überreden|v|persuade (talk into)
+in Frage stellen|phrase|question, call into question
+misstrauen|v|distrust
+bewerten|v|evaluate, rate
+beurteilen|v|judge, assess
+interpretieren|v|interpret
+zu+stimmen|v|agree
+widersprechen|v|contradict
+begünstigen|v|favor
+schaden|v|harm, damage (+ dative)
+profitieren|v|benefit, profit
+garantieren|v|guarantee
+sichern|v|secure, ensure
+verpflichten|v|(sich) commit (oneself), oblige
+bei+tragen|v|contribute
+verursachen|v|cause
+erzeugen|v|produce, generate
+stärken|v|strengthen
+schwächen|v|weaken
+erweitern|v|expand, widen
+begrenzen|v|limit
+fest+legen|v|set, establish
+an+passen|v|adapt, adjust
+konfrontieren|v|confront
+aus+halten|v|stand, bear
+riskieren|v|risk
+@4 feeling
+ermutigen|v|encourage
+auf+muntern|v|cheer up
+beleidigen|v|insult, offend
+schämen|v|(sich) be ashamed
+gestehen|v|confess
+bedauern|v|regret
+beneiden|v|envy
+verachten|v|despise
+ignorieren|v|ignore
+betrügen|v|cheat, deceive
+enttäuschen|v|disappoint
+beeindrucken|v|impress
+rühren|v|move (emotionally); stir
+inspirieren|v|inspire
+motivieren|v|motivate
+heraus+fordern|v|challenge
+`);
+  LISTS.push(`
+// travel, culture and the arts
+@4 travel
+Reiseroute|f-n|itinerary, route
+Unterkunft|f¨e|accommodation
+Jugendherberge|f-n|youth hostel|place
+Pension|f-en|guesthouse; pension|place
+Zwischenstopp|m-s|stopover
+Zoll|m¨e|customs
+Kreuzfahrt|f-en|cruise
+Rundgang|m¨e|tour (on foot)
+Sehenswürdigkeit|f-en|sight, attraction
+Kulturerbe|n0|cultural heritage
+Denkmal|n¨er|monument|place
+Dom|m-e|cathedral|place
+Burg|f-en|castle (a fortress)|place
+Palast|m¨e|palace|place
+buchen|v|book
+stornieren|v|cancel
+touristisch|a|tourist, touristy|noCmp
+malerisch|a|picturesque|+
+historisch|a|historic, historical|noCmp
+exotisch|a|exotic
+unvergesslich|a|unforgettable|+ noCmp
+@4 travel,people
+Rucksacktourist|m-en|backpacker|per wk f:Rucksacktouristin
+@4 art
+Ausstellung|f-en|exhibition
+Werk|n-e|work (of art, of literature)
+Kunstwerk|n-e|work of art
+Theaterstück|n-e|play
+Meisterwerk|n-e|masterpiece
+Porträt|n-s|portrait
+Stil|m-e|style
+Kreativität|f0|creativity|+
+Architektur|f-en|architecture
+Design|n-s|design
+Fotografie|f-n|photography; photograph
+Aufführung|f-en|performance
+Vorstellung|f-en|performance; idea; introduction
+Szene|f-n|scene
+Bühne|f-n|stage
+Gattung|f-en|genre
+Handwerk|n0|crafts, trade
+Volkskunst|f0|folk art
+Festival|n-s|festival
+Identität|f-en|identity
+Erbe|n0|heritage, inheritance
+Austausch|m0|exchange
+künstlerisch|a|artistic|noCmp
+zeitgenössisch|a|contemporary|noCmp
+zweisprachig|a|bilingual|noCmp
+auf+treten|v.s|perform; occur
+komponieren|v|compose
+aus+stellen|v|exhibit
+aus+tauschen|v|exchange
+@4 art,people
+Dichter|m-|poet|per f:Dichterin
+Romanautor|m-en|novelist|per f:Romanautorin
+Erzähler|m-|narrator|per f:Erzählerin
+Handwerker|m-|craftsman/craftswoman; tradesperson|per f:Handwerkerin
+@4 music
+Orchester|n-|orchestra
+// housing and city life
+@4 home
+Aufzug|m¨e|elevator
+Klimaanlage|f-n|air conditioning
+Wartung|f-en|maintenance
+Reparatur|f-en|repair
+Renovierung|f-en|renovation
+Bau|m:Bauten|construction; building
+Quadratmeter|m-|square meter
+Nebenkosten|pl|utilities, extra costs (on top of the rent)
+Kaltmiete|f-n|rent without utilities
+möbliert|a|furnished|noCmp
+geräumig|a|spacious
+zentral|a|central
+hausgemacht|a|homemade|noCmp
+renovieren|v|renovate
+befinden|v|(sich) be (located)
+@4 home,people
+Hausmeister|m-|building manager, janitor|per f:Hausmeisterin
+Mitbewohner|m-|roommate|per f:Mitbewohnerin
+@4 town
+Altstadt|f¨e|old town
+Stadtrand|m¨er|outskirts
+Grünanlage|f-n|park, green space
+Zebrastreifen|m-|crosswalk
+Kreisverkehr|m-e|traffic circle
+Radweg|m-e|bike lane
+Hochhaus|n¨er|high-rise
+Wolkenkratzer|m-|skyscraper
+@4
+ländlich|a|rural|noCmp
+unsicher|a|unsafe; insecure|-
+Beleuchtung|f-en|lighting
+Mülltonne|f-n|trash can
+Straßenlaterne|f-n|streetlight
+Klingel|f-n|doorbell
+Fußgänger|m-|pedestrian|per f:Fußgängerin
+`);
+  LISTS.push(`
+// the words of explaining and discussing (B2 texts and talks are full of them)
+@4
+Anforderung|f-en|requirement, demand
+Ansicht|f-en|view, opinion
+Anteil|m-e|share, proportion
+Aufwand|m0|effort, expense
+Ausnahme|f-n|exception
+Auswahl|f0|choice, selection
+Bereich|m-e|area, field
+Belastung|f-en|burden, strain
+Bereitschaft|f0|willingness
+Bestandteil|m-e|component
+Betrag|m¨e|amount (of money)
+Bewertung|f-en|rating, review
+Dauer|f0|duration
+Druck|m0|pressure; printing
+Einsatz|m¨e|use; commitment
+Einstellung|f-en|attitude; setting
+Empfehlung|f-en|recommendation
+Erwartung|f-en|expectation
+Fortsetzung|f-en|continuation, sequel
+Gegensatz|m¨e|contrast, opposite
+Grundlage|f-n|basis, foundation
+Hinweis|m-e|hint, note
+Inhalt|m-e|content
+Kenntnis|f:Kenntnisse|knowledge (Kenntnisse: skills)
+Lage|f-n|situation; location
+Maßnahme|f-n|measure, step
+Mittel|n-|means; remedy
+Nutzen|m0|benefit, use
+Rahmen|m-|frame; framework
+Rücksicht|f0|consideration
+Rückgang|m¨e|decline
+Rückmeldung|f-en|feedback
+Schwerpunkt|m-e|focus, main point
+Spannung|f-en|tension; suspense
+Teilnahme|f0|participation
+Überblick|m-e|overview
+Umsetzung|f-en|implementation
+Verhältnis|n:Verhältnisse|relationship; ratio
+Verständnis|n0|understanding
+Vorgang|m¨e|process, event
+Wachstum|n0|growth
+Wahrnehmung|f-en|perception
+Widerstand|m¨e|resistance
+Zufall|m¨e|chance, coincidence
+Zugang|m¨e|access
+Zusammenarbeit|f0|cooperation
+ab+hängen|v|depend (abhängen von: depend on)
+an+wenden|v|apply, use
+auf+fallen|v.s|stand out, catch the eye
+aus+wählen|v|choose, select
+bemerken|v|notice
+bestimmen|v|determine, decide
+ermöglichen|v|make possible
+fest+stellen|v|find out, notice
+nach+weisen|v|prove
+reagieren|v|react
+schätzen|v|estimate; appreciate
+um+gehen|v.s|deal with (umgehen mit)
+unterscheiden|v|distinguish
+unternehmen|v|undertake, do (something)
+verzichten|v|do without (verzichten auf)
+vor+kommen|v.s|occur, happen; seem
+zusammen+fassen|v|summarize
+an+steigen|v.s|rise, increase
+verhalten|v|(sich) behave
+vermitteln|v|convey; arrange
+abhängig|a|dependent|noCmp
+deutlich|a|clear, distinct
+erheblich|a|considerable
+gering|a|small, slight
+gewaltig|a|enormous, huge
+heftig|a|violent, intense
+offiziell|a|official|noCmp
+vorläufig|a|temporary, provisional|noCmp
+zahlreich|a|numerous
+umfangreich|a|extensive
+vielfältig|a|diverse, varied
+// basics that were missing
+@2
+Medikament|n-e|medicine, medication
+Magen|m¨|stomach
+Job|m-s|job
+Ostern|n-|Easter
+bieten|v|offer
+@3
+Knöchel|m-|ankle; knuckle
+`);
   const spec = {
     lang: 'de', lists: LISTS, entry, forms, expand: expandAll, prior, score, capNouns: true, callVerb: 'heißen',
     // a capitalized word the list doesn't know is a noun we lack, unless it reads like a place or a person («aus Hamburg», «und Anna»)
@@ -3299,12 +4375,18 @@ stumm|a|mute, silent
     context, summary, check, describe, enGloss, inflect, numbers,
     connectors: ['weil', 'denn', 'da', 'aber', 'sondern', 'obwohl', 'trotzdem', 'jedoch', 'und', 'oder', 'außerdem', 'auch', 'zum Beispiel',
       'deshalb', 'deswegen', 'also', 'dann', 'danach', 'zuerst', 'später', 'endlich', 'wenn', 'als', 'während', 'bevor', 'nachdem', 'bis', 'sobald',
-      'falls', 'damit', 'ich finde', 'ich glaube', 'meiner Meinung nach', 'dass'],
+      'falls', 'damit', 'ich finde', 'ich glaube', 'meiner Meinung nach', 'dass',
+      // (DX-B2) the B2 linking words
+      'dennoch', 'folglich', 'einerseits', 'andererseits', 'aufgrund', 'erstens', 'zweitens', 'zusammenfassend', 'abschließend', 'insbesondere',
+      'kurz gesagt', 'es sei denn', 'vorausgesetzt', 'meiner Ansicht nach', 'aus meiner Sicht', 'ohne dass', 'sodass', 'indem'],
     connectorKinds: { weil: 'reason', denn: 'reason', da: 'reason', aber: 'contrast', sondern: 'contrast', obwohl: 'contrast', trotzdem: 'contrast',
       jedoch: 'contrast', und: 'add', oder: 'add', 'außerdem': 'add', auch: 'add', 'zum Beispiel': 'add', deshalb: 'result', deswegen: 'result',
       also: 'result', dann: 'time', danach: 'time', zuerst: 'time', 'später': 'time', endlich: 'time', wenn: 'cond', als: 'time', 'während': 'time',
       bevor: 'time', nachdem: 'time', bis: 'time', sobald: 'time', falls: 'cond', damit: 'reason', 'ich finde': 'opinion', 'ich glaube': 'opinion',
-      'meiner Meinung nach': 'opinion', dass: 'add' },
+      'meiner Meinung nach': 'opinion', dass: 'add',
+      dennoch: 'contrast', folglich: 'result', einerseits: 'contrast', andererseits: 'contrast', aufgrund: 'reason', erstens: 'time',
+      zweitens: 'time', zusammenfassend: 'result', 'abschließend': 'result', insbesondere: 'add', 'kurz gesagt': 'result', 'es sei denn': 'cond',
+      vorausgesetzt: 'cond', 'meiner Ansicht nach': 'opinion', 'aus meiner Sicht': 'opinion', 'ohne dass': 'add', sodass: 'result', indem: 'add' },
     weakConnectors: ['und', 'oder'],
     fillers: ['also', 'na ja', 'naja', 'äh', 'ähm', 'halt', 'eben', 'mal', 'sozusagen', 'irgendwie', 'tja', 'weißt du', 'ne', 'oder'],
   };

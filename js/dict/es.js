@@ -459,11 +459,22 @@ ducir|zc pr:duj`;
     if (e.lemma === 'ser' && (f.tense === 'past' || f.mood === 'subj') && nx.some(n => n.e.pos === 'adj' || n.e.det || n.e.art || key(n.w) === 'de')) s += 0.6;
     // (DX-B2) never a finite verb right after ser / estar: «el examen fue duro» (not durar), «la ropa está seca» (not secar),
     // «el cuarto está limpio» (not limpiar)
-    if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.copula && LATIN.finite(pv.f)) s -= 2;
+    if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.copula) s -= 2;
     // (DX-B2) a clitic never comes right after a preposition: «en la tarde», «de la casa» are the article and a noun (not
     // «la» + tardar / casar)
     if (e.clitic && !e.art && pv && pv.e.pos === 'prep' && !pv.e.art) s -= 3;
+    // (DX-B2) after a determiner and an adjective, a word that can be a noun is the noun: «la mejor parte», «el primer paso»,
+    // «un buen uso», «mi mayor deseo» (not partir, pasar, usar, desear)
+    // (only a noun that agrees with them: «el viejo cocina bien» keeps the verb)
+    if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.pos === 'adj' && i >= 2 && !W[i - 1].punct && W[i - 2] && W[i - 2]._r && (W[i - 2]._r.e.det || W[i - 2]._r.e.art) && nounAgrees(W, i, W[i - 2]._r) && nounAgrees(W, i, pv)) s -= 2.5;
+    // (DX-B2) a second finite verb right after an adjective, in a clause that has its verb: unlikely («tiene buen gusto»)
+    else if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.pos === 'adj' && nounAgrees(W, i, pv) && clauseFinite(W, i)) s -= 1.5;
     return s;
+  }
+  // a noun reading of word i that agrees in gender and number with the reading r (a determiner or an adjective before it)
+  function nounAgrees(W, i, r) {
+    const g = r.f.gender, n = r.f.number || 's';
+    return W[i]._c.some(x => { if (x.e.pos !== 'n') return false; const xg = x.f.gender || x.e.g, xn = x.f.number || 's'; return xn === n && (!g || g === 'mf' || !xg || xg === 'mf' || xg === g); });
   }
 
   // ------------------------------------------------------------ the shared Romance config
@@ -3661,7 +3672,6 @@ acabar|v|finish, end up
 firmar|v|sign
 sufrir|v|suffer
 despertar|v.ie|wake (someone) up
-disculparse|v|apologize
 robar|v|steal, rob
 desear|v|wish, desire
 guiar|v.í|guide
@@ -4300,6 +4310,13 @@ contenedor|m|container; dumpster
 poste de luz|phrase|streetlight
 timbre|m|doorbell; stamp (Mexico)
 peatón|m|pedestrian|per
+// basics that were missing
+@2
+medicamento|m|medicine, medication
+diversión|f|fun, entertainment
+@2 time
+Navidad|f|Christmas
+Pascua|f|Easter
 `);
   const spec = {
     lang: 'es', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'llamarse',
