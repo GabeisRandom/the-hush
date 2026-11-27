@@ -200,7 +200,7 @@ const MAIL = (() => {
       if (ta.length) opts.push({ label: 'Write back', sub: `${ta.length} letter${ta.length > 1 ? 's' : ''} to answer · the desk by the window`, value: 'write' });
       if (n || m.inbox.length) opts.push({ label: 'Your stamp album', sub: `${n} stamp${n === 1 ? '' : 's'}`, value: 'album' });
       opts.push({ label: 'Ask about the pen pals', sub: nextNote(), value: 'pals' });
-      if (typeof JOBS !== 'undefined' && JOBS.offer) { const o = JOBS.offer('post'); if (o) opts.push({ label: o.label, sub: o.sub, value: o }); }
+      if (typeof JOBS !== 'undefined' && JOBS.offer) for (const jid of ['post', 'interp']) { const o = JOBS.offer(jid); if (o) opts.push({ label: o.label, sub: o.sub, value: o }); }      // (the post job, and from B1 the visitors' desk)
       const v = await choose(TOWNHALL.clerkName(), opts);
       if (!v) { await clerkSay(LIFE.said('bye', 'clerk')); return; }
       if (v === 'mail') { await mailList(); continue; }

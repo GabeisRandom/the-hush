@@ -48,7 +48,7 @@ const LIFEUI = (() => {
   background-image: repeating-linear-gradient(transparent, transparent 29px, rgba(63,111,181,.13) 30px); box-shadow: 3px 4px 0 rgba(43,34,53,.12); }
 #lf .lf-paper p { margin: 0 0 6px; } #lf .lf-paper .lf-sig { text-align: right; font-style: italic; margin-top: 6px; }
 #lf .lf-paper .lf-from { font: 700 13px "Segoe UI", sans-serif; opacity: .7; margin-bottom: 8px; padding-right: 92px; }
-#lf .lf-paper canvas.lf-stamp { position: absolute; right: 14px; top: 10px; width: 66px; height: 82px; transform: rotate(4deg); }
+#lf .lf-paper canvas.lf-stamp { float: right; margin: -8px -10px 6px 12px; width: 66px; height: 82px; transform: rotate(4deg); }
 #lf .lf-paper.post { transform: rotate(-1deg); }
 #lf .lf-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; }
 #lf .lf-cols .lf-paper { font-size: 15.5px; line-height: 1.55; max-height: 46vh; overflow: auto; }
@@ -59,6 +59,7 @@ const LIFEUI = (() => {
 #lf .lf-pts li .st { display: block; margin-top: 3px; font-size: 13px; color: ${TEAL}; font-weight: 700; cursor: pointer; }
 #lf textarea { width: 100%; min-height: 250px; resize: vertical; font: 600 17px/1.55 Georgia, serif; padding: 12px 14px; border: 2.5px solid ${INK}; border-radius: 12px; background: #fffdf6;
   background-image: repeating-linear-gradient(transparent, transparent 25px, rgba(63,111,181,.12) 26px); background-position: 0 11px; }
+#lf[data-lang="zh"] textarea, #lf[data-lang="zh"] .lf-paper { font-family: Cambria, "Times New Roman", serif; }   /* (Georgia on Windows breaks pīnyīn's third tone: ǎ ǒ ǔ show as a˘) */
 #lf .lf-count { font-size: 13px; font-weight: 800; opacity: .75; } #lf .lf-count.ok { color: #2f8f4e; opacity: 1; }
 #lf .lf-grade { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: #fff; font: 900 18px Bahnschrift, sans-serif; border: 2.5px solid ${INK}; vertical-align: middle; }
 #lf .g-S { background: #d9a72c; } #lf .g-A { background: #21a493; } #lf .g-B { background: #3f6fb5; } #lf .g-C { background: #8a4f7d; } #lf .g-D { background: #8a8a92; }
@@ -128,6 +129,7 @@ const LIFEUI = (() => {
   function open() {
     dom();
     root.innerHTML = '<div class="lf-shade"></div>'; root.classList.remove('hidden');
+    try { root.dataset.lang = LIFE.L(); } catch (e) { /* */ }
     if (!openN) { document.body.classList.add('lf-open'); if (typeof Input !== 'undefined') Input.typing = true; const g = game(); if (g && g.state) { g.state.teaching = true; g.prompt = null; } }
     openN = 1;
     return root;
@@ -169,7 +171,7 @@ const LIFEUI = (() => {
   function lineHTML(ln, o = {}) {
     if (!ln) return '';
     const id = 'lfen' + (++enN);
-    return `<span class="tl">${o.gloss ? glossHTML(ln.t) : tl(ln.t)}</span>${ln.en && o.en !== false ? ` <button class="sm" data-en="${id}" type="button" title="The English">EN</button><span class="en hide" id="${id}">${E(ln.en)}</span>` : ''}`;
+    return `<span class="tl">${ln.plain ? E(ln.t) : o.gloss ? glossHTML(ln.t) : tl(ln.t)}</span>${ln.en && o.en !== false ? ` <button class="sm" data-en="${id}" type="button" title="The English">EN</button><span class="en hide" id="${id}">${E(ln.en)}</span>` : ''}`;
   }
   function wire(el) {
     el.querySelectorAll('[data-en]').forEach(b => { b.onclick = e => { e.stopPropagation(); const t = el.querySelector('#' + b.dataset.en); if (t) t.classList.toggle('hide'); }; });
@@ -384,9 +386,12 @@ const LIFEUI = (() => {
         paint();
         const t = def.tasks[k], who = t.who || {}, band = def.band || 1;
         f.body.innerHTML = `<div class="lf-sh"><div><div class="lf-who"><canvas width="184" height="184"></canvas><div><div class="nm">${E(P(who.name || ''))}</div><div class="rl">${E(who.role || '')}</div></div></div>`
-          + `<div class="lf-lines">${(t.lines || []).map(l => `<div class="lf-bub"><span class="${t.listen ? 'hid' : ''}">${lineHTML(l, { en: !t.listen })}</span><button class="sm say" type="button">🔊</button></div>`).join('')}</div>`
+          + `<div class="lf-lines">${(t.lines || []).map(l => `<div class="lf-bub"><span class="${t.listen ? 'hid' : ''}">${lineHTML(l, { en: !t.listen && !t.noEn })}</span>${t.noSpeak ? '' : '<button class="sm say" type="button">🔊</button>'}</div>`).join('')}</div>`
           + (t.listen ? '<button class="sm reveal" type="button">Show the words</button>' : '') + `<div class="lf-goal">✎ ${E(t.goal || '')}</div><div class="lf-rung"></div>`
           + (t.kind === 'pick' ? `<div class="lf-pick">${t.prompt || ''}</div><div class="lf-opts">${(t.options || []).map((o, i) => `<button type="button" data-o="${i}">${o.html}</button>`).join('')}</div>`
+            : t.kind === 'write' ? `<ul class="lf-pts">${(t.points || []).map((p, i) => `<li data-k="${i}"><span class="ck">${i + 1}</span><span>${p.t ? lineHTML(p.t) : ''}${p.starter ? `<span class="st" data-st="${i}">✎ A way to start: ${tl(p.starter.t)}</span>` : ''}</span></li>`).join('')}</ul>`
+              + `<textarea spellcheck="false" style="min-height:150px" placeholder="Write in ${E(LANGNAME[L()] || 'the language')}…"></textarea><div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap"><span class="lf-count">0 words</span><span style="flex:1"></span><button class="sm model" type="button">Show me one way</button><button class="main go" type="button">Hand it in</button></div>`
+              + `<div class="lf-box hidden lf-model"><b>One way to write it</b> <span class="lf-note">(copying it costs half the marks)</span><div>${t.model ? lineHTML(t.model) : ''}</div></div>`
             : `<div class="lf-say"><input autocomplete="off" spellcheck="false" placeholder="Say it in ${E(LANGNAME[L()] || 'the language')}…"><button class="main go" type="button">Say it</button><button class="help" type="button" title="Help (Tab)">?</button></div>`)
           + `<div class="lf-fb"></div></div><div>${t.board ? `<div class="lf-board">${t.board}</div>` : ''}</div></div>`;
         face(f.body.querySelector('.lf-who canvas'), who.look);
@@ -398,12 +403,13 @@ const LIFEUI = (() => {
         bubs.forEach(b => { const s = b.querySelector('.say'); if (s) s.onclick = sayAll; });
         const rv = f.body.querySelector('.reveal'); if (rv) rv.onclick = reveal;
         if (t.listen && typeof SPEECH !== 'undefined') { SPEECH.ready(800).then(() => { if (!SPEECH.has(L())) reveal(); }); }
-        if (!T.fast) setTimeout(sayAll, 250);
+        if (!T.fast && !t.noSpeak) setTimeout(sayAll, 250);
         let tries = 0, help = 0;
         const finish = (grade, score, extra) => {
           res.grades.push(grade); res.results.push({ grade, score, kind: t.kind, peeked });
           try {
-            if (t.kind === 'pick' || t.skill === 'read') DICT.log(t.listen && !peeked ? 'listen' : 'read', band, score);
+            if (t.kind === 'write') { /* (its grader logs 'write') */ }
+            else if (t.kind === 'pick' || t.skill === 'read') DICT.log(t.listen && !peeked ? 'listen' : 'read', band, score);
             else { DICT.log('talk', band, grade); if (t.listen && !peeked && played) DICT.log('listen', band, score); }
           } catch (e) { /* */ }
           const after = grade === 'D' ? null : t.after;
@@ -425,6 +431,42 @@ const LIFEUI = (() => {
           }; });
           keys(e => { if (e.code === 'Escape') { end(true); return true; } return false; });
           if (T.auto) setTimeout(() => { const i = (t.options || []).findIndex(o => o.value === t.answer); const b = bs[T.auto === 'wrong' ? (i + 1) % bs.length : i]; if (b) b.onclick(); if (T.auto === 'wrong') { const b2 = bs[(i + 2) % bs.length]; if (b2 && !b2.disabled) b2.onclick(); } }, 10);
+          return;
+        }
+        // a written task (Radio Alba's news item): the points tick off as you write, like the letters' desk; t.grade(text, { model })
+        // → { grade, score 0..1, points, fixed, tips, zero }; showing the model costs half the marks
+        if (t.kind === 'write') {
+          const ta = f.body.querySelector('textarea'), cnt = f.body.querySelector('.lf-count'), lis = [...f.body.querySelectorAll('.lf-pts li')];
+          const go = f.body.querySelector('.go'), mb = f.body.querySelector('button.model');
+          if (cj() && CJK.mode(L()) === 'chars' && CJK.attachIME) { try { CJK.attachIME(ta); } catch (e) { /* */ } }
+          let shown = false, tmr = null, sure = false;
+          const count = () => (t.count ? t.count(ta.value) : String(ta.value).split(/\s+/).filter(Boolean).length);
+          const upd = () => {
+            const w = count(); cnt.textContent = `${w} word${w === 1 ? '' : 's'} (${t.min}–${t.max})`; cnt.classList.toggle('ok', w >= t.min && w <= t.max * 1.5);
+            clearTimeout(tmr); tmr = setTimeout(() => { let okp = []; try { okp = t.check ? t.check(ta.value) : []; } catch (e) { okp = []; } lis.forEach((li, i) => { li.classList.toggle('ok', !!okp[i]); li.querySelector('.ck').textContent = okp[i] ? '✓' : String(i + 1); }); }, 450);
+          };
+          ta.oninput = upd;
+          f.body.querySelectorAll('[data-st]').forEach(s => { s.onclick = () => { const p = t.points[+s.dataset.st]; if (!p || !p.starter) return; const txt = cj() ? (CJK.mode(L()) === 'chars' ? CJK.chars(p.starter.t, { lang: L() }) : CJK.plain(p.starter.t, { lang: L() })) : P(p.starter.t); const ins = String(txt).replace(/_{2,}/g, '').trim(); ta.value = (ta.value.trim() ? ta.value.replace(/\s*$/, ' ') : '') + ins + (cj() ? '' : ' '); ta.focus(); upd(); }; });
+          if (mb) mb.onclick = () => { shown = true; f.body.querySelector('.lf-model').classList.remove('hidden'); mb.disabled = true; };
+          const submit = () => {
+            const text = ta.value.trim(); if (!text) return;
+            const w = count();
+            if (w < Math.ceil(t.min * 0.6) && !sure) { sure = true; fb.innerHTML = `<div class="lf-note"><b>${w} of at least ${t.min} words.</b> Press again to hand it in anyway.</div>`; return; }
+            clearTimeout(tmr);
+            let r = null; try { r = t.grade(text, { model: shown }); } catch (e) { console.error('[lifeui] write', e); r = { grade: 'D', score: 0 }; }
+            T.last = { task: k, text, r };
+            ta.disabled = true; go.disabled = true; if (mb) mb.disabled = true;
+            const g = r.grade || 'D';
+            lis.forEach((li, i) => { const okp = (r.points || [])[i]; li.classList.toggle('ok', !!okp); li.classList.toggle('no', !okp); li.querySelector('.ck').textContent = okp ? '✓' : '✗'; });
+            const fix = r.fixed && r.fixed !== text ? `<div class="lf-box lf-fix">${fixHTML(text, r.fixed)}</div>` : '';
+            const tips = (r.tips || []).slice(0, 3).map(x => `<div class="lf-note tip">• ${E(x)}</div>`).join('');
+            snd(g === 'S' || g === 'A' ? 'chest' : 'page');
+            finish(g, typeof r.score === 'number' ? r.score : ({ S: 1, A: 0.85, B: 0.7, C: 0.5, D: 0.2 })[g], `<div><span class="lf-grade g-${g}" title="${E(GRADE_EN[g] || '')}">${g}</span> ${r.zero ? E(ZERO[r.zero] || '') : shown ? 'With the model shown, it counts half.' : ''}</div>${fix}${tips}`);
+          };
+          go.onclick = submit;
+          keys(e => { if (e.code === 'Escape') { end(true); return true; } return false; });
+          setTimeout(() => ta.focus(), 60); upd();
+          if (T.auto) setTimeout(() => { ta.value = typeof T.auto === 'function' ? T.auto(t) : T.auto === 'english' ? 'I do not know, sorry' : textOf(t.model); upd(); sure = true; submit(); }, 10);
           return;
         }
         const inp = f.body.querySelector('.lf-say input'), go = f.body.querySelector('.lf-say .go'), hb = f.body.querySelector('.lf-say .help');

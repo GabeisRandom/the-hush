@@ -66,7 +66,8 @@ const LIFE = (() => {
   }
 
   // ------------------------------------------------------------ the save: G.state.life
-  // { v, day, dayDate, dayStart, mail: { pals, inbox, sent, stamps, got, missed, visits }, jobs: { <id>: {…} }, hall: { … } }
+  // { v, day, dayDate, dayStart, mail: { pals, inbox, sent, stamps, got, missed, visits }, jobs: { <id>: {…} }, hall: { … },
+  //   news: [ the player's Radio Alba items (jobs.js saveNews: { at, day, story, lang, script, band, title, titleEn, text, grade, score }) ] }
   const MEM = {};
   function S() {
     const st = G && G.state; const o = st ? (st.life || (st.life = {})) : MEM;
@@ -271,7 +272,8 @@ const LIFE = (() => {
     for (const [id, j] of Object.entries(c.jobs)) {
       if (!j.boss || !j.boss.name) bad('job ' + id, 'no boss'); else valid(`job ${id}.boss`, j.boss.name);
       for (const [k, v] of Object.entries(j.lines || {})) lns(`job ${id}.lines.${k}`, v);
-      for (const b of [1, 2, 3, 4]) if (!(j.why && arr(j.why[b]).length)) bad('job ' + id, 'no why turn at band ' + b);
+      // (a job that hires from B1, j.min 3, needs its why turns from that band; a higher band may use the one below)
+      for (const b of [1, 2, 3, 4]) { if (b < (j.min || 1)) continue; let has = false; for (let x = b; x >= (j.min || b) && !has; x--) has = !!(j.why && arr(j.why[x]).length); if (!has) bad('job ' + id, 'no why turn at band ' + b); }
       for (const [k, v] of Object.entries({ why: j.why, situation: j.situation, hypo: j.hypo })) for (const [b, list] of Object.entries(v || {})) arr(list).forEach((tn, i) => turn(`job ${id}.${k}.${b}[${i}]`, tn));
     }
     for (const [k, v] of Object.entries(c.interview || {})) if (v && typeof v === 'object' && !Array.isArray(v) && k !== 'react') for (const [b, list] of Object.entries(v)) arr(list).forEach((tn, i) => turn(`interview.${k}.${b}[${i}]`, tn));
