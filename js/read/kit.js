@@ -210,5 +210,5 @@ const KIT = (() => {
     return { lang: l, ok: !fails.length, fails, counts };
   }
 
-  return { add, on, next, episode, build, strings, check, tests, parse, _: { C, cache, rng, hash, fillStr, fillDeep, tplsAt } };
+  return { add, on, next, episode, build, strings, check, tests, parse, _: { C, cache, rng, hash, fillStr, fillDeep, tplsAt, pickSlots, makeItem } };     // (paper.js fills its weather and ads from the banks)
 })();

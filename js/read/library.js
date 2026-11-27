@@ -147,7 +147,7 @@ const LIBRARY = (() => {
   let ROOM = null;
   const SPOT = { spawn: { x: 0, z: HD - 1.3 }, exit: { x: 0, z: HD - 0.5 }, desk: { x: 0, z: -1.9 }, lib: { x: 0, z: -3.0 }, talk: { x: 0, z: -0.75 },
     radio: { x: -6.7, z: -0.4 }, board: { x: -HW + 0.5, z: 3.6 }, clock: { x: HW - 0.15, z: -1.2 }, clockAt: { x: HW - 1.2, z: -1.2 },
-    nook: { x: -4.9, z: 1.2 }, table: { x: 3.4, z: 2.3 }, globe: { x: 5.9, z: -3.0 }, kids: { x: 5.6, z: 4.2 } };
+    nook: { x: -4.9, z: 1.2 }, table: { x: 3.4, z: 2.3 }, globe: { x: 5.9, z: -3.0 }, kids: { x: 5.6, z: 4.2 }, rack: { x: HW - 0.3, z: 1.4 } };
   const CASES = [1, 2, 3, 4].map((band, i) => ({ band, x: -5.4 + i * 3.6, z: -HD + 0.42 }));
   function floorTex() {
     return signTex(512, 512, c => {
@@ -295,6 +295,15 @@ const LIBRARY = (() => {
     for (let i = 0; i < 9; i++) k.box(KC.x + 1.0, 0.88 + (i % 3) * 0.0, KC.z - 0.85 + i * 0.18, 0.3, 0.16 + (i % 3) * 0.04, 0.1, PAL[(i * 5) % PAL.length], { ink: 0.004, rx: 0.1 });
     for (const [cx, cz, c] of [[-0.5, 0.3, '#e86a8a'], [0.2, -0.5, '#4a8ac9'], [0.3, 0.6, '#e6c07a']]) k.ball(KC.x + cx, 0.14, KC.z + cz, 0.32, 0.14, 0.32, c, { ink: 0.008 });
     solids.push({ obox: 1, x: KC.x + 1.1, z: KC.z - 0.2, hw: 0.3, hd: 0.85, rot: 0 });
+    // the newspaper rack on the east wall (paper.js: the weekly «El Eco del Valle»): a slanted stand, two rows of folded papers
+    const RK = SPOT.rack;
+    k.box(RK.x, 0.42, RK.z, 0.4, 0.84, 1.24, '#6b4a2e').box(RK.x - 0.02, 0.87, RK.z, 0.46, 0.06, 1.32, '#8a5f3e');
+    k.box(RK.x + 0.08, 1.1, RK.z, 0.08, 0.5, 1.24, '#5a3a22', { rz: -0.35 });
+    for (const [dz, c] of [[-0.31, '#f4efe4'], [0.31, '#fbf6e7']]) for (const [dy, dx] of [[0.98, -0.05], [1.24, 0.04]]) {
+      k.box(RK.x + dx, dy, RK.z + dz, 0.03, 0.34, 0.5, c, { ink: 0.004, rz: -0.35 }).box(RK.x + dx - 0.018, dy + 0.1, RK.z + dz, 0.005, 0.06, 0.4, '#2b2235', { ink: 0, rz: -0.35 });
+    }
+    solids.push({ obox: 1, x: RK.x, z: RK.z, hw: 0.26, hd: 0.68, rot: 0 });
+    { const t = (typeof PAPER !== 'undefined' && PAPER.mast && PAPER.mast()) || ''; if (t) { const sg = ZHF.plane(1.1, 0.24, signTex(512, 112, c => { c.fillStyle = '#2b2235'; c.fillRect(0, 0, 512, 112); c.fillStyle = '#f4efe4'; c.fillRect(6, 6, 500, 100); c.fillStyle = '#2b2235'; c.textAlign = 'center'; c.textBaseline = 'middle'; let px = 54; c.font = `900 ${px}px Georgia, serif`; while (px > 18 && c.measureText(t).width > 470) { px--; c.font = `900 ${px}px Georgia, serif`; } c.fillText(t, 256, 58); })); sg.position.set(HW - 0.04, 1.78, RK.z); sg.rotation.y = -HALF; g.add(sg); } }
     // windows (east and west), the notice board by the door, the welcome mat, two hanging lamps
     for (const [x, z, ry] of [[-HW + 0.03, -2.8, HALF], [HW - 0.03, 2.6, -HALF]]) { const w = ZHF.plane(1.3, 1.6, windowTex()); w.position.set(x, 2.4, z); w.rotation.y = ry; g.add(w); }
     const nb = ZHF.plane(1.5, 1.12, boardTex()); nb.position.set(-HW + 0.05, 1.9, SPOT.board.z); nb.rotation.y = HALF; g.add(nb);
@@ -409,6 +418,7 @@ const LIBRARY = (() => {
     for (const C of CASES) A({ x: C.x, z: C.z + 1.35 }, 1.5, `Browse ${READ.BAND(C.band)}`, () => browse(C.band));
     if (typeof RADIO !== 'undefined' && RADIO.tune && READ.on('radio')) A({ x: SPOT.radio.x + 1.05, z: SPOT.radio.z + 0.35 }, 1.4, 'Listen', () => RADIO.tune('library'));
     A({ x: SPOT.board.x + 0.75, z: SPOT.board.z }, 1.3, 'Read', () => SIGNS.read(noticeCard()));
+    if (typeof PAPER !== 'undefined' && PAPER.on()) A({ x: SPOT.rack.x - 0.95, z: SPOT.rack.z }, 1.2, 'Read the paper', () => PAPER.open('library'));
     A(SPOT.clockAt, 1.4, 'Look', clockLook);
     A({ x: SPOT.globe.x - 0.7, z: SPOT.globe.z + 0.6 }, 1.1, 'Look', async () => STORY.think('An old globe. Someone drew a tiny star on the valley, and a question mark far up north.', 5));
     return list;

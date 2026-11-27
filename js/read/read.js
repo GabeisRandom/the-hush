@@ -373,7 +373,7 @@ const READ = (() => {
   // ------------------------------------------------------------ the map marks (minimap.js), the init and the per-frame update
   const MODS = () => [typeof LIBRARY !== 'undefined' && LIBRARY, typeof DIARY !== 'undefined' && DIARY, typeof RADIO !== 'undefined' && RADIO, typeof OVERHEARD !== 'undefined' && OVERHEARD,
     typeof QUIZ !== 'undefined' && QUIZ, typeof CLUB !== 'undefined' && CLUB,     // (QUIZ, CLUB: D1's radio quiz and book club)
-    typeof SERIAL !== 'undefined' && SERIAL].filter(Boolean);     // (SERIAL: A1's detective serial on Radio Alba)
+    typeof SERIAL !== 'undefined' && SERIAL, typeof PAPER !== 'undefined' && PAPER, typeof POCKET !== 'undefined' && POCKET].filter(Boolean);     // (A1: the serial, the paper, the pocket radio)
   function mapMarks(dpr) {
     const out = [];
     for (const M of MODS()) if (M.mapMarks) { try { out.push(...(M.mapMarks(dpr) || [])); } catch (e) { /* */ } }
