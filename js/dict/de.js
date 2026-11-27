@@ -57,6 +57,7 @@
   const ENDS = ['e', 'en', 'er', 'es', 'em'];
   function attStem(a) {
     if (a === 'hoch') return 'hoh';
+    if (/[^e]e$/.test(a)) return a.slice(0, -1);                      // (DX-B2) müde → müd-, dritte → dritt- (it gave «müdeen»)
     if (/[^aeiou]el$/.test(a)) return a.slice(0, -2) + 'l';          // dunkel → dunkl-
     if (/(au|eu)er$/.test(a)) return a.slice(0, -2) + 'r';            // teuer → teur-
     return a;
@@ -105,6 +106,8 @@ beißen||biss|gebissen|h
 bieten||bot|geboten|h
 binden||band|gebunden|h
 bitten||bat|gebeten|h
+blasen|bläs|blies|geblasen|h
+befehlen|befiehl|befahl|befohlen|h
 bleiben||blieb|geblieben|s
 braten|brät|briet|gebraten|h
 brechen|brich|brach|gebrochen|h
@@ -133,6 +136,7 @@ gewinnen||gewann|gewonnen|h
 gießen||goss|gegossen|h
 gleichen||glich|geglichen|h
 meiden||mied|gemieden|h
+melken||melkte|gemolken|h
 graben|gräb|grub|gegraben|h
 greifen||griff|gegriffen|h
 haben|*|hatte|gehabt|h
@@ -230,6 +234,7 @@ zwingen||zwang|gezwungen|h`;
   const KII = { sein: 'wär', haben: 'hätt', werden: 'würd', können: 'könnt', müssen: 'müsst', dürfen: 'dürft', sollen: 'sollt', wollen: 'wollt',
     mögen: 'möcht', wissen: 'wüsst', tun: 'tät', bringen: 'brächt', denken: 'dächt', brauchen: 'bräucht' };
   const INSEP = ['wider', 'über', 'unter', 'miss', 'zer', 'emp', 'ent', 'ver', 'be', 'ge', 'er'];
+  const NOGE = new Set(['interviewen', 'recyceln']);                  // (DX-B2) participles with no ge-: interviewt, recycelt
   const PN = ['1s', '2s', '3s', '1p', '2p', '3p'];
   // the verb's base for STRONG: itself, or after an inseparable prefix (verstehen → stehen)
   function baseOf(v) {
@@ -293,10 +298,11 @@ zwingen||zwang|gezwungen|h`;
     // participle (gemacht, gegangen, verstanden, studiert) and its adjective forms (das gekochte Ei)
     let pp;
     if (S) pp = B.insep ? pre + S.pp.replace(/^ge/, '') : S.pp;
-    else if (B.insep || ieren) pp = stem + (tStem ? 'et' : 't');
+    else if (B.insep || ieren || NOGE.has(v)) pp = stem + (tStem ? 'et' : 't');
     else pp = 'ge' + stem + (tStem ? 'et' : 't');
     add(pp, 'part');
     ENDS.forEach(en => add(pp + en, 'part.att'));
+    if (v === 'werden') add('worden', 'part');                       // (DX-B2) the passive's «worden»: «ist gebaut worden»
     add(v, 'inf');
     CJ.set(v, out);
     return out;
@@ -431,6 +437,10 @@ zwingen||zwang|gezwungen|h`;
     // (a helper counts only in the same clause: the «würde» of a main clause doesn't make the «haben» of a «weil» clause an infinitive)
     let cs0 = i; while (cs0 > 0 && !W[cs0 - 1].punct) cs0--;
     if (e.pos === 'v' && f.form === 'part' && W.slice(cs0, i).some(x => x._r && /^(haben|sein)$/.test(x._r.e.lemma) && finite(x._r.f))) s += 1.5;
+    // (DX-B2) «Habt ihr Zeit?»: «ihr» right after a verb in the ihr-form is the subject, not «ihr» (her) before a noun
+    if (key(w.t) === 'ihr' && pv && pv.e.pos === 'v' && finite(pv.f) && pv.f.person === 2 && pv.f.number === 'p') s += e.det ? -3 : e.pos === 'pron' ? 3 : 0;
+    // (DX-B2) and right before one: «Ihr habt es geschafft!» (it read «ihr» as «to her» and asked for «hat»)
+    if (key(w.t) === 'ihr' && (e.det || e.pos === 'pron') && nx.some(n => n.exact && n.e.pos === 'v' && finite(n.f) && n.f.mood !== 'imp' && n.f.person === 2 && n.f.number === 'p')) s += e.det ? -3 : f.case === 'nom' ? 3 : -1;
     // (DX-B2) an ihr-command never follows its clause's own verb: «Gestern habe ich ihn besucht» is the participle (after «ihn»
     // or «ihm», forms of a subject pronoun, the command won and «habe» got a tense fix)
     if (e.pos === 'v' && f.mood === 'imp' && W.slice(cs0, i).some(x => x._r && x._r.e.pos === 'v' && finite(x._r.f) && x._r.f.mood !== 'imp')) s -= 3;
@@ -464,6 +474,7 @@ zwingen||zwang|gezwungen|h`;
   function subjAt(W, i) {
     const w = W[i]; if (!w || w.punct) return null;
     const k = key(w.t), c = w._r;
+    if (c && c.e.det) return null;                                      // (DX-B2) «Ihr Hund bellt»: «ihr» as «her / your» isn't one
     if (SUBJP[k] && !(c && c.f.case && c.f.case !== 'nom')) return { pns: [SUBJP[k]], i };
     if (k === 'sie') return { pns: w.t === 'Sie' && i > 0 && !(W[i - 1].punct && /[.!?]/.test(W[i - 1].t)) ? ['3p'] : ['3s', '3p'], i };
     return null;
@@ -492,9 +503,21 @@ zwingen||zwang|gezwungen|h`;
     while (e < W.length - 1 && !brk(e + 1) && !(coordSplits(e + 1, 1) && e + 1 > i)) e++;
     while (s < e && W[s].punct) s++;
     while (e > s && W[e].punct) e--;
-    const sub = !!W[s] && SUBORD.has(key(W[s].t)) && !!W[s]._r && (W[s]._r.e.sub || W[s]._r.e.pos === 'conj');
+    // (DX-B2) «…, und wenn ich rauskomme, ist…»: the clause starts at the «wenn», not at the «und» in front of it
+    if (s < i && COORD.has(key(W[s].t)) && W[s + 1] && !W[s + 1].punct && SUBORD.has(key(W[s + 1].t)) && W[s + 1]._r && (W[s + 1]._r.e.sub || W[s + 1]._r.e.pos === 'conj')) s++;
+    let sub =!!W[s] && SUBORD.has(key(W[s].t)) && !!W[s]._r && (W[s]._r.e.sub || W[s]._r.e.pos === 'conj');
+    // (DX-B2) a clause set off by a comma whose finite verb comes last is subordinate too when it opens with bis / seit /
+    // während / da (read as a preposition or an adverb), a question word («Weißt du, wann der Bus abfährt?») or a relative
+    // pronoun («…, der um acht abfährt», «…, auf der wir sitzen»): a separable verb there stays joined
+    if (!sub && W[s] && e > s + 1 && fin(e) && ((s > 0 && W[s - 1].t === ',') || (W[e + 1] && W[e + 1].t === ','))) {
+      const k1 = W[s + 1] && !W[s + 1].punct ? key(W[s + 1].t) : '';
+      if (SUB_LAST.has(key(W[s].t)) || (W[s]._r && W[s]._r.e.pos === 'prep' && REL_W.has(k1))) sub = true;
+    }
     return { s, e, sub };
   }
+  const REL_W = new Set(['der', 'die', 'das', 'dem', 'den', 'deren', 'dessen', 'denen', 'welche', 'welcher', 'welches', 'welchem', 'welchen']);
+  const SUB_LAST = new Set(['bis', 'seit', 'wahrend', 'da', 'wo', 'wann', 'was', 'wer', 'wen', 'wem', 'wessen', 'wie', 'warum', 'wieso',
+    'weshalb', 'woher', 'wohin', 'wofur', 'womit', 'woraus', 'woruber', 'wovon', 'wozu', 'woran', 'worauf', 'worin', ...REL_W]);
   const SEP_INDEX = P => {
     if (P.sepIx) return P.sepIx;
     P.sepIx = new Map();
@@ -553,7 +576,9 @@ zwingen||zwang|gezwungen|h`;
     const out = [];
     for (const [re, t] of [[PAST_W, 'past'], [FUT_W, 'future']]) { re.lastIndex = 0; let m; while ((m = re.exec(str))) { const s = at(m.index), e = at(m.index + m[0].length - 1); if (s != null) out.push({ s, e, t }); } }
     // «morgen» after «am»/«heute» is the morning
-    return out.filter(t => !(key(W[t.s].t) === 'morgen' && W[t.s - 1] && /^(am|heute|jeden|guten)$/.test(key(W[t.s - 1].t)))).sort((a, b) => a.s - b.s);
+    // (DX-B2) and «seit gestern» reaches up to now, so it goes with the present: «Seit gestern regnet es»
+    return out.filter(t => !(key(W[t.s].t) === 'morgen' && W[t.s - 1] && /^(am|heute|jeden|guten)$/.test(key(W[t.s - 1].t))) &&
+      !(t.t === 'past' && W[t.s - 1] && !W[t.s - 1].punct && key(W[t.s - 1].t) === 'seit')).sort((a, b) => a.s - b.s);
   }
   const c0 = w => (w._r ? (w._r.e.sep ? w._r.e.base : w._r.e.lemma) : '');
   function summary(a, W) {
@@ -725,6 +750,10 @@ zwingen||zwang|gezwungen|h`;
     for (const w of W) {
       if (w.punct || done.has(w.i)) continue;
       const req = PREP_CASE[key(w.t)]; if (!req || !w._r || w._r.e.pos !== 'prep') continue;
+      // (DX-B2) «Was für ein schöner Name!»: «was für» asks «what kind of» and takes no case of its own
+      if (req === 'acc' && key(w.t) === 'fur' && pvi(W, w.i) >= 0 && key(W[pvi(W, w.i)].t) === 'was') continue;
+      // (DX-B2) «Seit ich hier wohne, …»: «seit» opening a clause is a conjunction, with a subject after it
+      { const cw = clauseOf(W, w.i); if (cw.sub && cw.s === w.i) continue; }
       const j = nxi(W, w.i); if (j < 0 || done.has(j)) continue;
       const jk = key(W[j].t);
       if (PRON_OF[jk] && !(W[j]._r && W[j]._r.e.det)) {
@@ -1037,7 +1066,7 @@ letzte|a|last|noCmp
 euer|det:EIN:euer|your (ihr)|poss
 mancher|det:DIES:manch|some, many a|quant
 alle|det:alle=p.nom,alle=p.acc,allen=p.dat,aller=p.gen|all|quant
-beide|det:beide=p.nom,beide=p.acc,beiden=p.dat,beider=p.gen|both|quant
+beide|det:beide=p.nom,beide=p.acc,beiden=p.dat,beider=p.gen,beides=n.s.nom,beides=n.s.acc,beidem=n.s.dat|both|quant
 seit|prep|since, for (time)|case:dat
 gegenüber|prep|opposite|case:dat
 durch|prep|through|case:acc
@@ -1102,8 +1131,8 @@ unten|adv|down, downstairs
 links|adv|on the left
 rechts|adv|on the right
 geradeaus|adv|straight ahead
-jemand|pron|someone
-niemand|pron|nobody|neg
+jemand|pron:jemand=nom,jemanden=acc,jemandem=dat|someone
+niemand|pron:niemand=nom,niemanden=acc,niemandem=dat|nobody|neg
 wohin|adv|where to|q
 woher|adv|where from|q
 wieso|adv|why|q
@@ -1199,7 +1228,7 @@ Arzt|m¨e|doctor|per f:Ärztin
 Polizist|m-en|police officer|per wk f:Polizistin
 Koch|m¨e|cook|per f:Köchin
 Bäcker|m-|baker|per f:Bäckerin
-Briefträger|m-|mail carrier|per f:Briefträgerin alt:Postbote
+Briefträger|m-|mail carrier|per f:Briefträgerin
 Gärtner|m-|gardener|per f:Gärtnerin
 Musiker|m-|musician|per f:Musikerin
 Bauer|m-n|farmer; pawn (chess)|per wk f:Bäuerin
@@ -1634,7 +1663,7 @@ werfen|v|throw
 an+greifen|v|attack
 schieben|v|push
 klettern|v.s|climb
-pusten|v|blow|alt:blasen
+pusten|v|blow
 fliegen|v|fly
 fallen|v|fall
 zeigen|v|show
@@ -1867,7 +1896,7 @@ Paar|n-e|couple, pair
 Kollege|m-n|colleague|per wk f:Kollegin
 Gast|m¨e|guest|per
 Fremde|m-n|stranger|per
-Erwachsene|m-n|adult|per
+Erwachsene|m-n|adult (ein Erwachsener, eine Erwachsene)|per wk alt:Erwachsener f:Erwachsene
 Zwilling|m-e|twin|per
 Mensch|m-en|person, human|per wk
 @2 work,people
@@ -2252,7 +2281,7 @@ japanisch|a|Japanese|noCmp
 türkisch|a|Turkish|noCmp
 ausländisch|a|foreign|noCmp
 Ausländer|m-|foreigner|per f:Ausländerin
-Deutsche|m-n|German (person)|per wk
+Deutsche|m-n|German (person; ein Deutscher, eine Deutsche)|per wk alt:Deutscher f:Deutsche
 Spanien|name|Spain|country
 Mexiko|name|Mexico|country
 Brasilien|name|Brazil|country
@@ -2420,7 +2449,7 @@ Erinnerung|f-en|memory
 Gedächtnis|n:Gedächtnisse|memory (the ability)
 Kindheit|f0|childhood
 Jugend|f0|youth
-Jugendliche|m-n|teenager|per wk
+Jugendliche|m-n|teenager (ein Jugendlicher, eine Jugendliche)|per wk alt:Jugendlicher f:Jugendliche
 Generation|f-en|generation
 Sinn|m-e|sense, meaning
 Bedeutung|f-en|meaning
@@ -4367,6 +4396,242 @@ Ostern|n-|Easter
 bieten|v|offer
 @3
 Knöchel|m-|ankle; knuckle
+`);
+  // DX-B2, round 2 (2026-11-27): words_needed.txt's de words (the LIFE jobs, the club books, the quiz show's kit, the radio
+  // serial and the paper)
+  LISTS.push(`
+@1
+ähm|int|um
+@2
+Bücherei|f-en|library (a small public library)
+Kätzchen|n-|kitten
+Nuss|f¨e|nut
+ab+geben|v|hand in
+aus+leihen|v|borrow; lend
+lohnen|v|(sich) be worth it (es lohnt sich)
+kaum|adv|hardly, barely
+raus|adv|out
+raus+gehen|v.s|go out
+raus+kommen|v.s|come out, get out
+rein+lassen|v|let in
+hinten|adv|at the back
+vorne|adv|at the front|alt:vorn
+Reihe|f-n|row; series (der Reihe nach: in turn)
+Held|m-en|hero|per wk f:Heldin
+binden|v|tie
+weh+tun|v|hurt, ache (es tut weh: it hurts)
+winken|v|wave
+klingeln|v|ring (a bell)
+Zaun|m¨e|fence
+Mauer|f-n|wall
+Daumen|m-|thumb
+Klamotten|pl|clothes (casual)
+fein|a|fine
+lügen|v|lie (tell a lie)
+Anruf|m-e|(phone) call
+gucken|v|look, peek
+klatschen|v|clap
+pflücken|v|pick (fruit, flowers)
+windig|a|windy
+fair|a|fair
+Clown|m-s|clown|per
+Zirkus|m:Zirkusse|circus
+Kurve|f-n|bend, curve
+Kalb|n¨er|calf
+Schaukel|f-n|swing
+Insekt|n-en|insect
+Reiher|m-|heron
+link|a|left (die linke Hand: the left hand)|noCmp
+Bank#bench|f¨e|bench (Bänke)
+denen|pron|(to) whom; (to) them (the dative plural of der, die, das as a pronoun)
+keins|pron|none, not one (keins davon)|neg
+@3
+interviewen|v|interview
+Interview|n-s|interview
+Meldung|f-en|news item, report
+Schulgarten|m¨|school garden
+Störung|f-en|disturbance; fault (Entschuldigen Sie die Störung)
+an+stehen|v|queue, stand in line
+Bootsrennen|n-|boat race
+Bootslänge|f-n|boat length
+Vorsprung|m¨e|lead, head start
+durch+schauen|v|look through (a telescope)
+dolmetschen|v|interpret (between languages)
+ab+reisen|v.s|leave (on a trip)
+verlangen|v|demand, ask for
+Notizbuch|n¨er|notebook
+Mikrofon|n-e|microphone
+notieren|v|note down
+wofür|adv|what for|q
+womit|adv|with what|q
+woraus|adv|out of what|q
+pro|prep|per (pro Nacht: per night)|case:acc
+ein+werfen|v|post (a letter); throw in
+aus+fallen|v.s|be cancelled; fall out
+hinüber+kommen|v.s|get across
+indirekt|a|indirect (indirekte Rede: reported speech)|noCmp
+köstlich|a|delicious|+
+daraus|adv|out of it, from it
+Lesezeichen|n-|bookmark
+Plakat|n-e|poster
+an+treten|v.b|compete, take part; start (a job)
+zurück+kehren|v.s|return
+gelingen|v|succeed, work out (es gelingt mir: I manage)
+irgendwann|adv|at some point, one day
+Diskussion|f-en|discussion
+bedanken|v|(sich) say thank you
+befehlen|v|order, command
+reißen|v|tear
+wenigstens|adv|at least
+blasen|v|blow
+pfeifen|v|whistle
+entfernt|a|away, distant|noCmp
+Lok|f-s|engine, locomotive
+daneben|adv|next to it
+Begrüßung|f-en|greeting, welcome
+Dutzend|n-e|dozen
+verabschieden|v|(sich) say goodbye
+gelten|v|be valid (gelten als: be considered)
+Zeichen|n-|sign
+Archiv|n-e|archive
+längst|adv|long ago, long since
+Region|f-en|region
+Kasten|m¨|box (der Briefkasten: the mailbox)
+davor|adv|in front of it; before that
+miteinander|adv|with each other
+Schrift|f-en|writing, handwriting; script
+auf+wachsen|v.s|grow up
+dorthin|adv|there (to that place)
+Abstimmung|f-en|vote
+Alibi|n-s|alibi
+allerlei|a|all sorts of|noDecl noCmp
+allerseits|adv|everyone (Guten Morgen allerseits)
+Amsel|f-n|blackbird
+auf+ziehen|v|fit (tires); wind up; raise
+Aufregung|f-en|excitement, a stir
+Aula|f:Aulen|school hall
+aus+liefern|v|deliver
+Bass|m¨e|bass
+begeistert|a|thrilled|noCmp +
+Berufstätige|pl|working people
+besprechen|v|discuss
+Bremse|f-n|brake
+dagegen|adv|against it
+Dankeschön|n-s|thank-you
+derselbe|pron:derselbe=m.s.nom,dieselbe=f.s,dasselbe=n.s,dieselben=p,denselben=acc,demselben=dat,derselben=gen|the same (one)
+diesmal|adv|this time|adverbial
+ein+führen|v|introduce
+entgehen|v.s|escape, get past (Ihnen entgeht nichts)
+erwischen|v|catch (someone)
+Ferne|f0|distance (aus der Ferne: from a distance)
+Fleck|m-en|stain, spot
+Gestalt|f-en|figure, shape
+streichen|v|paint; cross out; spread
+heraus+nehmen|v|take out
+hinein+stellen|v|put in
+Karton|m-s|cardboard box
+klappen|v|work out (es klappt: it works)
+Kolumne|f-n|column
+Kompromiss|m-e|compromise
+locken|v|lure, attract
+melden|v|report; (sich) get in touch, sign up
+nach+erzählen|v|retell
+nach+geben|v|give way, give in
+präsentieren|v|present
+Stapel|m-|pile, stack
+Streich|m-e|prank
+auf+tauchen|v.s|turn up, appear
+Verdacht|m0|suspicion
+vermieten|v|rent out
+verteilen|v|distribute, hand out
+Wette|f-n|bet
+wetten|v|bet (ich wette: I bet)
+zusammen+halten|v|stick together
+ölen|v|oil
+übrig|a|left over (übrig bleiben: be left)|noCmp
+Applaus|m0|applause
+auf+bauen|v|put up, build
+auf+gehen|v.s|rise (the sun); open
+balancieren|v|balance
+bemalen|v|paint (decorate)
+beraten|v|advise; discuss
+Bingo|n-s|bingo
+bummeln|v.b|stroll
+Chorprobe|f-n|choir practice
+derjenige|pron:derjenige=m.s.nom,diejenige=f.s,dasjenige=n.s,diejenigen=p,denjenigen=acc,demjenigen=dat|the one (who)
+eiskalt|a|freezing cold|noCmp
+gefleckt|a|spotted, speckled|noCmp
+melken|v|milk
+sperren|v|close (a street), block
+wedeln|v|wag
+Hauptstraße|f-n|main street
+hin+fahren|v.b|go there (by vehicle)
+hin+kommen|v.s|get there
+Kundschaft|f0|customers
+Leitung|f-en|(phone) line; management; pipe
+Logik|f0|logic
+mit+helfen|v|help out
+neidisch|a|jealous, envious
+näher+bringen|v|bring closer
+originell|a|original, creative
+Personal|n0|staff
+Riesenrad|n¨er|Ferris wheel
+Rollschuh|m-e|roller skate
+Schneeballschlacht|f-en|snowball fight
+Schulklasse|f-n|school class
+Star|m-s|star (a celebrity)
+unangenehm|a|unpleasant, awkward
+unterschiedlich|a|different, varied|noCmp
+verdecken|v|cover, hide
+versammeln|v|(sich) gather
+Vertretung|f-en|representative; substitute
+Volksfest|n-e|fair, festival
+wehen|v|blow (wind)
+weiter+lesen|v|keep reading
+Wettrennen|n-|race
+überlassen|v|leave (something to someone)
+mähen|v|mow
+Rasenmähen|n0|mowing the lawn
+@3 people
+Kapitän|m-e|captain|per f:Kapitänin
+Organisator|m-en|organizer|per f:Organisatorin
+Dolmetscher|m-|interpreter|per f:Dolmetscherin
+Postbote|m-n|mail carrier|per wk f:Postbotin
+Wanderer|m-|hiker, wanderer|per f:Wanderin
+Sprecher|m-|speaker|per f:Sprecherin
+Anfänger|m-|beginner|per f:Anfängerin
+Anwohner|m-|resident|per f:Anwohnerin
+Mitspieler|m-|fellow player|per f:Mitspielerin
+Schreiner|m-|carpenter|per f:Schreinerin
+Helfer|m-|helper|per f:Helferin
+Pate|m-n|sponsor; godfather|per wk f:Patin
+Freiwillige|m-n|volunteer (ein Freiwilliger, eine Freiwillige)|per wk alt:Freiwilliger f:Freiwillige
+@4
+Blattlaus|f¨e|aphid
+Futterstelle|f-n|feeding spot (for birds)
+Lerche|f-n|lark
+Meise|f-n|tit (a small bird)
+nach+kochen|v|cook (from a recipe)
+Rosinenbrötchen|n-|raisin roll
+Saatgut|n0|seeds
+schnarchen|v|snore
+Spürnase|f-n|a nose for clues
+Stängel|m-|stem, stalk
+stöbern|v|browse, rummage
+tabu|a|off limits, taboo|noDecl noCmp
+verwaschen|a|washed out, faded|noCmp
+Wetterstation|f-en|weather station
+Winterquartier|n-e|winter quarters
+Winterschlaf|m0|hibernation
+Wochenausgabe|f-n|weekly edition
+überwintern|v|spend the winter
+Blumenkübel|m-|planter
+Großzügigkeit|f0|generosity|+
+Knackpunkt|m-e|crux
+Kummerkasten|m¨|advice column
+verarzten|v|patch up
+Sternegucker|m-|stargazer|per f:Sterneguckerin
+Befürworter|m-|supporter|per f:Befürworterin
 `);
   const spec = {
     lang: 'de', lists: LISTS, entry, forms, expand: expandAll, prior, score, capNouns: true, callVerb: 'heißen',

@@ -289,6 +289,7 @@ ducir|zc pr:duj`;
     if (ex.time) e.time = ex.time;
     if (ex.n != null) e.num = +ex.n;
     if (ex.alt) e.alt = String(ex.alt).split(',');
+    if (ex.skip) e.skip = new Set(String(ex.skip).split(','));          // (forms never indexed: unir's «uno», «una» are the number and the article)
     if (e.pos === 'det') e.det = true;
     if (e.pos === 'n') {
       e.g = code === 'm~' || code === 'mpl' ? 'm' : code === 'f*' || code === 'fpl' ? 'f' : code === 'mf' ? 'mf' : code;
@@ -319,6 +320,7 @@ ducir|zc pr:duj`;
     return [[m, 'm.s'], [f, 'f.s'], [plural(m), 'm.p'], [plural(f), 'f.p']];
   }
   function forms(e, add) {
+    if (e.skip) { const add0 = add; add = (w, k) => { if (!e.skip.has(w)) add0(w, k); }; }
     if (e.forms) { e.forms.forEach(([w, k]) => add(w, k)); if (!e.forms.some(x => x[0] === e.lemma)) add(e.lemma, ''); }
     else if (e.pos === 'n') {
       const g = e.g === 'mf' ? '' : e.g + '.';
@@ -333,7 +335,14 @@ ducir|zc pr:duj`;
     } else if (e.pos === 'v') {
       for (const [w, k] of conj(e.refl ? e.base : e.lemma, e.cls, e.pp)) add(w, k);
     } else add(e.lemma, '');
-    if (e.alt) for (const a of e.alt) add(a, e.pos === 'n' ? (e.g === 'mf' ? 's' : e.g + '.s') : '');
+    // (DX-B2) a noun's other word can carry its own gender, «alt:papalote/m»; it gets its plural too, and a plural-only
+    // noun's other word is plural («fideos: tallarines»)
+    if (e.alt) for (const a of e.alt) {
+      if (e.pos !== 'n') { add(a, ''); continue; }
+      const sl = a.indexOf('/'), w = sl > 0 ? a.slice(0, sl) : a, ag = sl > 0 ? a.slice(sl + 1) : (e.g === 'mf' ? '' : e.g), gk = ag ? ag + '.' : '';
+      if (e.plOnly) { add(w, gk + 'p'); continue; }
+      add(w, gk + 's'); if (!/[sx]$/.test(w)) add(plural(w), gk + 'p');
+    }
   }
 
   // ------------------------------------------------------------ clitics joined to a verb (lánzate, dámelo, comérselo, vámonos)
@@ -371,7 +380,29 @@ ducir|zc pr:duj`;
     const more = [];
     for (const c of out) { const re = P.reflOf.get(c.e.lemma); if (re) more.push(Object.assign({}, c, { e: re })); }
     const all = out.concat(more);
-    return all.length ? all : (dims(tk, P) || all);
+    return all.length ? all : (dims(tk, P) || sups(tk, P) || all);
+  }
+  // the absolute superlative (DX-B2): -ísimo / -ísima (+ s) on an adjective (malísimo, riquísimo: c → qu, larguísimo: g → gu,
+  // felicísimo: z → c, facilísimo, grandísimo, amabilísimo) or on mucho / poco (muchísimos, poquísimo)
+  function sups(tk, P) {
+    const raw = tk.t; if (raw.length < 7) return null;
+    const k = key(raw), m = /isim([oa])(s?)$/.exec(k); if (!m || lexWord(P, k)) return null;
+    const stem = k.slice(0, m.index), g = m[1] === 'a' ? 'f' : 'm', n = m[2] ? 'p' : 's';
+    const bases = [], put = b => { if (b.length >= 2 && !bases.includes(b)) bases.push(b); };
+    put(stem + 'o'); put(stem + 'e'); put(stem);
+    if (/qu$/.test(stem)) put(stem.slice(0, -2) + 'co');
+    if (/gu$/.test(stem)) put(stem.slice(0, -2) + 'go');
+    if (/c$/.test(stem)) put(stem.slice(0, -1) + 'z');
+    if (/bil$/.test(stem)) put(stem.slice(0, -3) + 'ble');
+    const res = [], seen = new Set();
+    for (const b of bases) for (const r of P.IX.get(b) || []) {
+      const e = r.e; if (seen.has(e.id) || e.auto) continue;
+      const much = /^(mucho|poco)$/.test(e.lemma) && (e.pos === 'det' || e.pos === 'adv' || e.pos === 'pron');
+      if (e.pos !== 'adj' && !much) continue;
+      seen.add(e.id);
+      res.push({ e, f: e.pos === 'adv' ? feat('') : feat(g + '.' + n), w: raw, exact: true, via: 'sup' });
+    }
+    return res.length ? res : null;
   }
   // diminutives (DX-B2): -ito / -ita / -cito / -ecito (+ s) on a noun or adjective the list knows, for a word the index doesn't:
   // casita, perrito, amiguito (g → gu), chiquito (c → qu), agüita, cafecito, mujercita, jovencito, florecita, lucecita (z → c),
@@ -383,14 +414,16 @@ ducir|zc pr:duj`;
     const ids = LEX.ids();
     if (!P._lexW || P._lexWN !== ids.length) {
       P._lexW = new Set(); P._lexWN = ids.length;
-      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; for (const w of [String(it[P.lang])].concat((it.alt && it.alt[P.lang]) || [])) { const c = String(w).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); } }
+      // (the main word only: an item's other words never get a headword of their own, «riquisimo» for «¡Qué rico!»)
+      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; const c = String(it[P.lang]).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); }
     }
     return P._lexW.has(k);
   }
   function dims(tk, P) {
     const raw = tk.t;
-    if (raw.length < 5 || raw[0] !== raw[0].toLowerCase()) return null;
+    if (raw.length < 5) return null;
     const k = key(raw), m = /it([oa])(s?)$/.exec(k); if (!m || lexWord(P, k)) return null;
+    if (raw[0] !== raw[0].toLowerCase() && !m[2]) return null;          // (a capital only on a plural, «Gatitos» heading a title; names aren't plural)
     const stem = k.slice(0, m.index), g = m[1] === 'a' ? 'f' : 'm', n = m[2] ? 'p' : 's';
     const bases = [], put = b => { if (b.length >= 3 && !bases.includes(b)) bases.push(b); };
     const v = g === 'f' ? 'a' : 'o', st = stem.replace(/qu$/, 'c').replace(/gu$/, 'g');
@@ -463,6 +496,12 @@ ducir|zc pr:duj`;
     // (DX-B2) a clitic never comes right after a preposition: «en la tarde», «de la casa» are the article and a noun (not
     // «la» + tardar / casar)
     if (e.clitic && !e.art && pv && pv.e.pos === 'prep' && !pv.e.art) s -= 3;
+    // (DX-B2) «Siempre las cuenta», «y las cuenta»: before a word that's a verb and a noun the article doesn't agree with, in a
+    // clause with no other verb, «la / las / lo / los» is the object pronoun (it read «las cuenta» as a number slip)
+    if (e.clitic && e.obj && nxFin && W[i + 1] && !W[i + 1].punct && !clauseFinite(W, i)) {
+      const dr = W[i]._c.find(x => x.e.det || x.e.art);
+      if (dr && !nounAgrees(W, i + 1, dr)) s += 1.5;
+    }
     // (DX-B2) after a determiner and an adjective, a word that can be a noun is the noun: «la mejor parte», «el primer paso»,
     // «un buen uso», «mi mayor deseo» (not partir, pasar, usar, desear)
     // (only a noun that agrees with them: «el viejo cocina bien» keeps the verb)
@@ -624,7 +663,8 @@ ducir|zc pr:duj`;
       if (!isFin(c)) continue;
       const lem = lk(c);
       // personal «a»: Visito a mi abuela
-      if (PERSONAL_A.has(lem) && !(lem === 'llamar' && rd(W, pv(W, w.i)) && rd(W, pv(W, w.i)).e.clitic)) {
+      // (DX-B2: after an object clitic, the noun phrase is the subject: «Hoy nos visita el doctor», «Me espera mi madre»)
+      if (PERSONAL_A.has(lem) && !(rd(W, pv(W, w.i)) && rd(W, pv(W, w.i)).e.clitic)) {
         const j = nx(W, w.i); const jc = rd(W, j);
         if (jc && (jc.e.art || jc.e.det) && !jc.e.indef && !jc.e.quant && !jc.e.q) {
           const np = npFrom(W, j);
@@ -729,6 +769,7 @@ ducir|zc pr:duj`;
     }
     if (low(c.w) === low(e.lemma)) return '';
     if (c.via === 'dim') return 'diminutive' + (f.number === 'p' ? ', plural' : '');
+    if (c.via === 'sup') return 'superlative' + (gnText(f) ? ', ' + gnText(f) : '');
     if (e.pos === 'n') return e.fem && f.gender === 'f' ? 'feminine' + (f.number === 'p' ? ' plural' : '') : f.number === 'p' ? 'plural' : '';
     if (e.pos === 'adj' || e.pos === 'det' || e.pos === 'pron') return f.apoc ? 'short form, before a noun' : gnText(f);
     return '';
@@ -739,6 +780,7 @@ ducir|zc pr:duj`;
     const m = /^([^/,;()]+)\/([^,;()]+)(.*)$/.exec(e.en || '');
     let en = m ? (f.gender === 'f' ? m[2] : m[1]) + m[3] : e.en;
     if (c.via === 'dim' && e.pos === 'n') en = 'little ' + en;
+    if (c.via === 'sup') en = 'very ' + EN.first(en);
     if (e.pos === 'n' && f.number === 'p' && !e.plOnly) return EN.plural(en);
     return en;
   }
@@ -1219,10 +1261,10 @@ helado|m|ice cream
 miel|f|honey
 @1 drink,food
 agua|f*|water
-café|m|coffee; café|alt:cafecito
+café|m|coffee; café
 té|m|tea
 jugo|m|juice|alt:zumo
-refresco|m|soda, soft drink|alt:gaseosa
+refresco|m|soda, soft drink|alt:gaseosa/f
 vaso|m|glass
 taza|f|cup, mug
 plato|m|plate; dish
@@ -1306,7 +1348,7 @@ nevar|v.ie|snow
 @1 animal
 animal|m|animal
 perro|m~|dog
-gato|m~|cat|alt:gatito
+gato|m~|cat
 pájaro|m|bird
 pez|m|fish (alive)
 caballo|m|horse; knight (chess)
@@ -1599,8 +1641,8 @@ pedrusco|m|big rock
 murciélago|m|bat
 bola|f|ball
 remo|m|oar
-farol|m|lantern|alt:linterna
-cuerda|f|rope|alt:soga,mecate
+farol|m|lantern
+cuerda|f|rope|alt:soga,mecate/m
 espantapájaros|m|scarecrow
 contraseña|f|password|alt:clave
 laberinto|m|maze, labyrinth
@@ -1620,7 +1662,7 @@ lavanda|f|lavender
 colmena|f|beehive
 invernadero|m|greenhouse|place
 hielo|m|ice
-alfombra|f|rug, carpet|alt:tapete
+alfombra|f|rug, carpet|alt:tapete/m
 horno|m|oven
 tijera|f|scissors|alt:tijeras
 ajedrez|m|chess
@@ -1644,12 +1686,12 @@ manta|f|blanket|alt:cobija,frazada
 disco|m|record, disc|alt:vinilo
 chicle|m|chewing gum
 periódico|m|newspaper|alt:diario
-cometa|f|kite|alt:papalote,barrilete,chiringa,volantín,papagayo
+cometa|f|kite|alt:papalote/m,barrilete/m,chiringa,volantín/m,papagayo/m
 calaverita|f|sugar skull
 fideos|mpl|noodles|alt:tallarines
 rollito|m|spring roll
 wantán|m|wonton|alt:wonton
-jiaozi|m|jiaozi (dumplings)|alt:empanadilla
+jiaozi|m|jiaozi (dumplings)|alt:empanadilla/f
 baozi|m|baozi (steamed buns)|alt:bollo
 copa|f|cup, trophy; glass (for drinks)
 barrio|m|neighborhood|place
@@ -1658,7 +1700,7 @@ bolsillo|m|pocket
 oro|m|gold
 carta|f|letter; card
 golosina|f|sweet, treat|alt:chocolatina
-hongo|m|mushroom|alt:seta
+hongo|m|mushroom|alt:seta/f
 norte|m|north
 sur|m|south
 este#n|m|east
@@ -1909,7 +1951,7 @@ toalla|f|towel
 jabón|m|soap
 cepillo|m|brush
 basura|f|trash
-refrigerador|m|refrigerator|alt:refri,nevera
+refrigerador|m|refrigerator|alt:refri,nevera/f
 estufa|f|stove
 lavadora|f|washing machine
 cuchara|f|spoon
@@ -2097,10 +2139,10 @@ arte|m|art
 educación física|phrase|PE, gym class
 nota|f|grade; note
 prueba|f|test, quiz
-bolígrafo|m|pen|alt:pluma,boli
+bolígrafo|m|pen|alt:pluma/f,boli
 goma|f|eraser; rubber
 regla|f|ruler; rule
-pizarra|f|blackboard, whiteboard|alt:pizarrón
+pizarra|f|blackboard, whiteboard|alt:pizarrón/m
 diccionario|m|dictionary
 frase|f|sentence, phrase
 oración|f|sentence; prayer
@@ -2718,12 +2760,12 @@ herramienta|f|tool
 clavo|m|nail (metal)
 tornillo|m|screw
 escoba|f|broom
-cubeta|f|bucket|alt:balde,cubo
+cubeta|f|bucket|alt:balde/m,cubo/m
 jarrón|m|vase
 cuadro|m|painting, picture; square
 marco|m|frame
 cajón|m|drawer
-bombilla|f|light bulb|alt:foco
+bombilla|f|light bulb|alt:foco/m
 enchufe|m|plug, socket
 chimenea|f|fireplace, chimney
 balcón|m|balcony
@@ -4317,6 +4359,122 @@ diversión|f|fun, entertainment
 @2 time
 Navidad|f|Christmas
 Pascua|f|Easter
+`);
+  // DX-B2, round 2 (2026-11-27): game/words_needed.txt's es words (the LIFE jobs, the club books, the radio serial and the paper)
+  LISTS.push(`
+@1
+eh|int|eh, um
+ajá|int|uh-huh, I see
+ah|int|ah, oh
+@2
+libreta|f|notebook
+jitomate|m|tomato (Mexico)
+chiquito|a|tiny, little
+escritorio|m|desk
+boda|f|wedding
+prisa|f|hurry (tener prisa: be in a hurry)
+gis|m|chalk (Mexico)|pl:gises
+encima|adv|on top (encima de: on top of)
+despacito|adv|very slowly
+linterna|f|flashlight; lantern
+cilantro|m|cilantro, coriander
+fideo|m|(thin) noodle (sopa de fideo: noodle soup)
+crema|f|cream; cream soup (crema de calabaza)
+calabaza|f|pumpkin, squash
+canasta|f|basket
+clienta|f|customer (a woman)|per
+salón|m|hall, room
+pata|f|leg (of an animal, of furniture); (female) duck
+insecto|m|insect
+cualquier|det:cualquier=s|any|quant
+mojar|v|wet, soak
+@3
+mostrador|m|counter (in an office or a shop)
+boletín|m|bulletin, newsletter
+bote|m|small boat, rowboat; can
+molestia|f|bother, trouble (disculpe la molestia: sorry for the trouble)
+infantil|a=|children’s (el equipo infantil)
+telescopio|m|telescope
+micrófono|m|microphone
+unir|v|unite, bring together|skip:uno,una,unos,unas
+cualquiera|pron|anyone, any (una campana cualquiera: just any bell)
+hospedarse|v|stay (at an inn or a hotel)
+estampilla|f|postage stamp
+lancha|f|launch, motorboat
+adoptar|v|adopt
+adopción|f|adoption («en adopción»: up for adoption)
+cartel|m|poster, sign
+tragedia|f|tragedy|-
+punta|f|tip, point
+ave|f*|bird
+agencia|f|agency
+torta|f|torta (a sandwich on a roll, in Mexico); cake
+portarse|v|behave (portarse bien: behave well)
+curva|f|bend, curve
+anochecer|m|nightfall
+perla|f|pearl
+pastelería|f|pastry shop, cake shop|place
+secreto#adj|a|secret
+anotar|v|note down
+ensayar|v|rehearse; try out
+ladrar|v|bark
+recién|adv|just, freshly (recién hecho: freshly made)
+chueco|a|crooked (Mexico)
+arruinar|v|ruin
+burlarse|v|make fun (burlarse de: make fun of)
+venda|f|bandage
+edición|f|edition
+lectura|f|reading
+banca|f|bench (Mexico); banking
+envolver|v.ue|wrap|pp:envuelto
+recomendación|f|recommendation
+dividir|v|divide
+frenar|v|brake
+golpe|m|blow, hit (de golpe: suddenly)
+consultorio|m|(doctor’s) office|place
+rentar|v|rent (Mexico)
+tela|f|cloth, fabric
+tablero|m|board (tablero de ajedrez: chessboard)
+manga|f|sleeve
+asa|f*|handle (of a bag, a cup)
+voltear|v|turn over; turn around
+revés|m|reverse side
+al revés|phrase|inside out, upside down, the other way around
+amarrar|v|tie
+mural|m|mural
+garza|f|heron
+trato|m|deal; treatment (hacer un trato: make a deal)
+@3 people
+capitán|m~|captain|per f:capitana
+detective|mf|detective|per
+ayudante|mf|assistant, helper|per
+participante|mf|participant, entrant|per
+principiante|mf|beginner|per
+veterinario|m~|vet|per
+pastelero|m~|pastry chef|per
+repartidor|m~|delivery person|per
+@4
+indirecto|a|indirect (estilo indirecto: reported speech)
+radionovela|f|radio drama
+desafinarse|v|go out of tune
+afinar|v|tune (an instrument)
+chillar|v|squeal, screech
+entreabierto|a|ajar, half-open
+sospechoso|a|suspicious; suspect (el sospechoso)
+rajado|a|cracked
+repartir|v|deliver, hand out
+tachar|v|cross out
+tararear|v|hum (a tune)
+pulir|v|polish
+asamblea|f|assembly, (open) meeting
+turnarse|v|take turns
+tenor|m|tenor
+conforme|a|satisfied (conforme con: happy with)
+anochecer#v|v.zc|get dark
+@4 people
+organizador|m~|organizer|per
+astrónomo|m~|astronomer|per
+afinador|m~|(piano) tuner|per
 `);
   const spec = {
     lang: 'es', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'llamarse',

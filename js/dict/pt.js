@@ -238,7 +238,14 @@ reunir|p:reúno,reúnes,reúne,reunimos,reunis,reúnem s:reúna,reúnas,reúna,r
       if (e.lemma === 'estar') { add('tô', 'pres.ind.1s'); add('tá', 'pres.ind.3s'); add('tá', 'pres.ind.2s'); add('tamo', 'pres.ind.1p'); }   // casual Brazilian speech
     }
     else add(e.lemma, '');
-    if (e.alt) for (const a of e.alt) add(a, e.pos === 'n' ? (e.g === 'mf' ? 's' : e.g + '.s') : '');
+    // (DX-B2) a noun's other word can carry its own gender, «alt:papagaio/m»; it gets its plural too, and a plural-only
+    // noun's other word is plural
+    if (e.alt) for (const a of e.alt) {
+      if (e.pos !== 'n') { add(a, ''); continue; }
+      const sl = a.indexOf('/'), w = sl > 0 ? a.slice(0, sl) : a, ag = sl > 0 ? a.slice(sl + 1) : (e.g === 'mf' ? '' : e.g), gk = ag ? ag + '.' : '';
+      if (e.plOnly) { add(w, gk + 'p'); continue; }
+      add(w, gk + 's'); if (!/[sx]$/.test(w)) add(plural(w), gk + 'p');
+    }
   }
 
   // ------------------------------------------------------------ clitics after a hyphen (chamo-me, dá-me, fazê-lo, levantar-se)
@@ -254,14 +261,16 @@ reunir|p:reúno,reúnes,reúne,reunimos,reunis,reúnem s:reúna,reúnas,reúna,r
     const ids = LEX.ids();
     if (!P._lexW || P._lexWN !== ids.length) {
       P._lexW = new Set(); P._lexWN = ids.length;
-      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; for (const w of [String(it[P.lang])].concat((it.alt && it.alt[P.lang]) || [])) { const c = String(w).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); } }
+      // (the main word only: an item's other words never get a headword of their own)
+      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; const c = String(it[P.lang]).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); }
     }
     return P._lexW.has(k);
   }
   function dims(tk, P) {
     const raw = tk.t;
-    if (raw.length < 6 || raw[0] !== raw[0].toLowerCase()) return null;
+    if (raw.length < 6) return null;
     const k = key(raw), m = /inh([oa])(s?)$/.exec(k); if (!m || lexWord(P, k)) return null;
+    if (raw[0] !== raw[0].toLowerCase() && !m[2]) return null;          // (a capital only on a plural, «Gatinhos» heading a title; names aren't plural)
     const stem = k.slice(0, m.index), g = m[1] === 'a' ? 'f' : 'm', n = m[2] ? 'p' : 's';
     const bases = [], put = (b, min = 3) => { if (b.length >= min && !bases.includes(b)) bases.push(b); };
     const v = g === 'f' ? 'a' : 'o', st = stem.replace(/qu$/, 'c').replace(/gu$/, 'g');
@@ -338,7 +347,8 @@ reunir|p:reúno,reúnes,reúne,reunimos,reunis,reúnem s:reúna,reúnas,reúna,r
     if (e.pos === 'v' && f.form === 'part' && pv && /^(ter|haver)$/.test(pv.e.lemma)) s += 3;
     if (e.pos === 'v' && f.form === 'inf' && pv && LATIN.finite(pv.f) && pv.e.pos === 'v') s += 1;
     // «é» typed «e» before an adjective: «a casa e grande»
-    if (e.lemma === 'ser' && !c.exact && k === 'e' && nx.some(n => n.e.pos === 'adj' || DEGREE_NEXT.has(key(n.w)))) s += 3;
+    // (DX-B2: not at the end of a list, «com luvas, sacos e muito bom humor»: that «e» is «and»)
+    if (e.lemma === 'ser' && !c.exact && k === 'e' && nx.some(n => n.e.pos === 'adj' || DEGREE_NEXT.has(key(n.w))) && !W.slice(Math.max(0, i - 4), i).some(x => x.punct && x.t === ',')) s += 3;
     // fui / foi: ir before «a», «para», «ao»; ser before what something was
     if (e.lemma === 'ir' && f.tense === 'past' && nx.some(n => /^(a|ao|aos|à|as|para|pra|pro|no|na|em)$/.test(key(n.w)))) s += 1;
     if (e.lemma === 'ser' && f.tense === 'past' && nx.some(n => n.e.pos === 'adj' || n.e.det || n.e.art && !/^(ao|a)$/.test(key(n.w)))) s += 0.6;
@@ -351,6 +361,9 @@ reunir|p:reúno,reúnes,reúne,reunimos,reunis,reúnem s:reúna,reúnas,reúna,r
     }
     // a second verb right after a noun, in a clause that has its verb already («comi um ovo frito»): unlikely
     if (e.pos === 'v' && LATIN.finite(f) && pv && (pv.e.pos === 'n' || pv.e.pos === 'adj') && clauseFinite(W, i)) s -= 1.5;
+    // (DX-B2) «Presentes para crianças», «Gatinhos para adoção»: a singular verb right after a plural noun, when the word is
+    // something else too, is that something else (a title has no verb: «para» is the preposition, not parar)
+    if (e.pos === 'v' && LATIN.finite(f) && f.number === 's' && pv && pv.e.pos === 'n' && pv.f.number === 'p' && W[i]._c.some(x => x.exact && x.e.pos !== 'v')) s -= 1.5;
     // (DX-B2) a contraction or article typed right, before a word the list doesn't know, stays one: «os nomes das samambaias»
     // (not «dás» with its accent missing)
     if ((e.det || e.art) && c.exact && ctx.next && !ctx.next.length) s += 2;
@@ -361,6 +374,8 @@ reunir|p:reúno,reúnes,reúne,reunimos,reunis,reúnem s:reúna,reúnas,reúna,r
     // never a finite verb right after ser / estar (in any form): «ela é baixa» (not baixar), «a roupa está seca» (not secar),
     // «o salário ser baixo»
     if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.copula) s -= 2;
+    // «vinte e um anos», «noventa e uma pessoas»: «um» after «e» and a number is the end of that number, not an article
+    if (e.pos === 'num' && (k === 'um' || k === 'uma') && pv && key(pv.w) === 'e' && i >= 2 && W[i - 2] && !W[i - 2].punct && (W[i - 2].num != null || (W[i - 2]._r && W[i - 2]._r.e.pos === 'num'))) s += 4;
     // «às» typed «as» right after a noun is the article, not an accent slip: «todo dia as crianças brincam»
     if (e.pos === 'prep' && !c.exact && pv && pv.e.pos === 'n' && W[i]._c.some(x => x.exact && (x.e.art || x.e.det) && x.e.pos !== 'prep')) s -= 2;
     // after a determiner and an adjective, a word that can be a noun that agrees with them is the noun: «a maior parte», «o
@@ -1019,7 +1034,7 @@ pizza|f|pizza
 macarrão|m|pasta, noodles|pl:macarrões
 biscoito|m|cookie|alt:bolacha
 bolo|m|cake
-doce|m|candy, sweet|alt:docinho
+doce|m|candy, sweet
 bala|f|candy
 chocolate|m|chocolate
 sorvete|m|ice cream|alt:picolé
@@ -1056,7 +1071,7 @@ telefone|m|phone
 celular|m|cell phone
 computador|m|computer
 televisão|f|television|alt:tv
-rádio|m|radio
+rádio|mf|radio (o rádio: the set; a rádio: the station)
 @1 town
 cidade|f|city|place
 vila|f|village|place
@@ -1114,7 +1129,7 @@ nevar|v|snow
 @1 animal
 animal|m|animal
 cachorro|m~|dog|alt:cão
-gato|m~|cat|alt:gatinho
+gato|m~|cat
 pássaro|m|bird|alt:passarinho
 cavalo|m|horse; knight (chess)
 vaca|f|cow
@@ -1203,11 +1218,11 @@ verde|a|green
 amarelo|a|yellow
 branco|a|white
 preto|a|black
-cinza|a=|gray
+cinza|a:cinza=mf.s,cinza=mf.p,cinzas=mf.p|gray (the same in the plural: luvas cinza)
 marrom|a=|brown
-rosa#adj|a=|pink
+rosa#adj|a:rosa=mf.s,rosa=mf.p|pink (the same in the plural: camisas rosa)
 roxo|a|purple
-laranja#adj|a=|orange (color)
+laranja#adj|a:laranja=mf.s,laranja=mf.p|orange (color; the same in the plural)
 @1 feeling
 feliz|a|happy|+
 contente|a|happy, glad|+
@@ -1458,7 +1473,7 @@ cobertor|m|blanket|alt:manta,coberta
 disco|m|record, disc|alt:vinil
 chiclete|m|chewing gum
 jornal|m|newspaper
-pipa|f|kite|alt:papagaio,pandorga,arraia
+pipa|f|kite|alt:papagaio/m,pandorga,arraia
 caveirinha|f|sugar skull
 rolinho|m|spring roll
 guioza|f|gyoza, jiaozi|alt:jiaozi
@@ -2065,7 +2080,7 @@ dobro|m|double
 @2 color
 dourado|a|golden
 prateado|a|silver
-bege|a=|beige
+bege|a:bege=mf.s,bege=mf.p,beges=mf.p|beige
 @2 place,people
 Brasil|name|Brazil|country
 Portugal|name|Portugal|country
@@ -3974,6 +3989,195 @@ reunir-se|v|meet, get together
 @2 time
 Natal|m|Christmas
 Páscoa|f|Easter
+`);
+  // DX-B2, round 2 (2026-11-27): words_needed.txt's pt words (the LIFE jobs, the club books, the quiz show's kit, the radio
+  // serial and the paper)
+  LISTS.push(`
+@1
+ih|int|oh (sympathy)
+opa|int|oops; oh!
+@2
+devagar|adv|slowly
+buscar|v|fetch, pick up; look for
+par|m|pair (um par de: a pair of)
+longo|a|long
+vontade|f|wish, desire (ter vontade de: feel like)
+muro|m|(outside) wall
+curioso|a|curious; odd
+graça|f|grace; fun (achar graça: find funny; de graça: free; uma graça: lovely)
+de graça|phrase|free (of charge)
+chuveiro|m|shower
+detalhe|m|detail
+polícia|f|police
+galo|m|rooster
+clube|m|club
+dica|f|tip, hint
+desculpas|fpl|apology, apologies (pedir desculpas: apologize)
+saco|m|bag, sack
+cesta|f|basket
+inseto|m|insect
+ave|f|bird
+circo|m|circus
+bosque|m|woods
+grátis|a=|free (of charge)
+época|f|time, era (na época: back then)
+ligação|f|(phone) call
+partir|v|leave; split, break
+caber|v|fit
+colher#v|v|pick (fruit), harvest
+sétimo|a|seventh
+oitavo|a|eighth
+nono|a|ninth
+gente boa|phrase|a good sort, a nice person (ele é gente boa)
+@3
+balcão|m|counter (in an office or a shop)
+boletim|m|bulletin
+infantil|a=|children’s (o time infantil)
+telescópio|m|telescope
+microfone|m|microphone
+ajeitar|v|fix up, tidy (dar uma ajeitada: give it a little polish)
+clareza|f|clarity (com clareza: clearly)
+unir|v|unite, bring together
+píer|m|pier
+hospedar|v|host, put up
+hospedar-se|v|stay (at an inn or a hotel)
+corredor|m|corridor, hall; runner
+indireto|a|indirect (discurso indireto: reported speech)
+delícia|f|delight; something delicious (uma delícia!)
+adotar|v|adopt
+adoção|f|adoption («para adoção»: up for adoption)
+cartaz|m|poster
+diante|adv|in front (daqui em diante: from now on)
+daqui em diante|phrase|from now on
+trás|adv|behind (para trás: back, backwards)
+para trás|phrase|back, backwards
+acalmar|v|calm (down)
+anterior|a=|previous (a noite anterior: the night before)
+sobrar|v|be left over
+emergência|f|emergency
+listrado|a|striped
+preso|a|stuck, shut in; arrested
+agência|f|agency
+perda|f|loss (perda de tempo: waste of time)
+sensação|f|feeling, sensation
+importância|f|importance
+confundir|v|confuse, mix up
+invenção|f|invention
+abanar|v|wag (a tail); fan
+aceso|a|lit, switched on
+agasalhar-se|v|wrap up warm
+aproximar|v|bring closer
+aproximar-se|v|come closer
+armar|v|put up (a tent); arm
+balanço|m|swing (in a playground); balance
+bezerro|m|calf
+bingo|m|bingo
+buzina|f|horn (of a bike or a car)
+cantarolar|v|hum
+cargo|m|position, post (a seat on a council)
+cima|adv|top (em cima de: on top of; de cima: from above)
+cozido|a|boiled, cooked
+curva|f|bend, curve
+enfim|adv|at last; in short (até que enfim: at last!)
+ensaio|m|rehearsal; essay
+espiar|v|peek, spy
+garça|f|heron
+latir|v|bark
+leitura|f|reading
+limpeza|f|cleanup, cleaning
+maratona|f|marathon
+morador|m~|resident|per
+perfeitamente|adv|perfectly
+plateia|f|audience
+pomar|m|orchard
+aos pouquinhos|phrase|little by little
+rasgar|v|tear
+recolher|v|pick up, collect
+refrescar|v|cool down, refresh
+representante|mf|representative|per
+roda-gigante|f|Ferris wheel|pl:rodas-gigantes
+tapar|v|cover, block
+testar|v|test, try out
+vencedor|m~|winner|per
+ventar|v|be windy (está ventando: it’s windy)
+vitrine|f|shop window
+antena|f|antenna
+apontar|v|point (to)
+atrapalhar|v|get in the way of, mess up
+baixinho#adv|adv|very softly, quietly
+barbearia|f|barbershop|place
+barbeiro|m|barber|per
+binóculo|m|binoculars
+colecionar|v|collect
+palavras cruzadas|phrase|crossword
+cuco|m|cuckoo (relógio de cuco: cuckoo clock)
+ensaiar|v|rehearse
+filhote|m|young animal; puppy, kitten, chick
+fio|m|wire; thread
+manual|m|manual
+miar|v|meow
+montar|v|set up, build; ride (a horse)
+novelo|m|ball of yarn
+prestar|v|be any good (prestar atenção: pay attention)
+prestar atenção|phrase|pay attention
+abóbora|f|pumpkin
+aprovar|v|approve; pass (an exam)
+atlas|m|atlas
+cercar|v|fence off, surround
+cheiro-verde|m|fresh herbs (parsley and spring onion)
+consultório|m|(doctor’s or vet’s) office|place
+debaixo|adv|underneath (debaixo de: under)
+debaixo de|phrase|under
+distância|f|distance
+edição|f|edition
+escorregador|m|slide (in a playground)
+escorregar|v|slip, slide
+estrelado|a|starry
+galinheiro|m|chicken coop
+lesma|f|slug
+observar|v|watch, observe
+pagamento|m|payment
+perdoar|v|forgive
+preferência|f|preference (de preferência: ideally)
+pátio|m|courtyard, schoolyard
+rabanete|m|radish
+recontar|v|retell
+resumir|v|sum up
+salão|m|hall
+sugestão|f|suggestion
+vendinha|f|corner store|place
+@3 people
+capitão|m~|captain|per f:capitã pl:capitães
+organizador|m~|organizer|per
+ajudante|mf|helper, assistant|per
+detetive|mf|detective|per
+agricultor|m~|farmer|per
+criador|m~|breeder; creator|per
+iniciante|mf|beginner|per
+parceiro|m~|partner|per
+veterinário|m~|vet|per
+@4
+enxurrada|f|torrent (of rainwater)
+generosidade|f|generosity|+
+meio-termo|m|middle ground|pl:meios-termos
+pelúcia|f|plush (de pelúcia: stuffed)
+amarelado|a|yellowed
+desmontado|a|taken apart, in pieces
+encerrado|a|closed, finished (caso encerrado: case closed)
+frequência|f|frequency
+radionovela|f|radio drama
+solda|f|solder (ferro de solda: soldering iron)
+transmissor|m|transmitter
+astronomia|f|astronomy
+constelação|f|constellation
+coruja-buraqueira|f|burrowing owl|pl:corujas-buraqueiras
+olheira|f|dark circle (under the eyes)
+partitura|f|sheet music
+plantio|m|planting
+cruzar|v|cross
+palavras cruzadas|phrase|crossword (puzzle)
+@4 people
+astrônomo|m~|astronomer|per
 `);
   const spec = {
     lang: 'pt', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'chamar-se',

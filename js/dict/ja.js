@@ -78,7 +78,7 @@
       if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf) || (code >= 0xf900 && code <= 0xfaff) || code === 0x3005) { out += c; prev = ''; continue; }
       if (code >= 0x30a1 && code <= 0x30f6) c = String.fromCharCode(code - 0x60);
       if (prev && SMALLX[prev + c]) { out = out.slice(0, -1) + SMALLX[prev + c]; prev = SMALLX[prev + c]; continue; }
-      if (prev && isExt(c, prev)) continue;
+      if (prev && isExt(c, prev)) { prev = 'ー'; continue; }          // (a long vowel is one stretch: けいえい is けえ, not け)
       out += LOOSE[c] || c; prev = c;
     }
     return [out, prev];
@@ -184,10 +184,11 @@
       ['たいです', { tense: 'pres', polite: true }], ['たかったです', { tense: 'past', polite: true }], ['たくないです', { tense: 'pres', neg: true, polite: true }]]
       .forEach(([x, f]) => V('i', x, Object.assign({ want: true }, f)));
     // (potential: every form; the casual ら-less potential, passive and causative: the common ones)
-    const KEEP = { pot: 'る ます ない ません た ました なかった て', pot2: 'る ます ない ません', pass: 'る ます ない た ました て', caus: 'る ます た ました て' };
+    const KEEP = { pot: 'る ます ない ません た ました なかった て なかったら なくて', pot2: 'る ます ない ません', pass: 'る ます ない た ました て', caus: 'る ます ない ません た ました て' };
     for (const [k, b] of [['pot', { pot: true }], ['pot2', { pot: true }], ['pass', { pass: true }], ['caus', { caus: true }]])
       [['る', { tense: 'pres' }], ['ます', { tense: 'pres', polite: true }], ['ない', { tense: 'pres', neg: true }], ['ません', { tense: 'pres', polite: true, neg: true }],
-        ['た', { tense: 'past' }], ['ました', { tense: 'past', polite: true }], ['なかった', { tense: 'past', neg: true }], ['て', { form: 'te' }]]
+        ['た', { tense: 'past' }], ['ました', { tense: 'past', polite: true }], ['なかった', { tense: 'past', neg: true }], ['て', { form: 'te' }],
+        ['なかったら', { cond: 'tara', neg: true }], ['なくて', { form: 'te', neg: true }]]
         .forEach(([x, f]) => { if (KEEP[k].split(' ').includes(x)) V(k, x, Object.assign({}, f, b)); });
     V('pot', 'たら', { pot: true, cond: 'tara' });
     V('vol', '', { mood: 'vol' });
@@ -195,6 +196,10 @@
     V('imp', '', { mood: 'imp' });
     V('i', 'ながら', { form: 'nagara' });
     V('i', '', { form: 'stem' }, 0.6);
+    // (〜ず / 〜ずに: without doing, 言わずに; 〜ちゃう / 〜じゃう: the casual 〜てしまう, 帰っちゃう, 読んじゃった)
+    V('zu', 'ず', { neg: true, form: 'zu' }); V('zu', 'ずに', { neg: true, form: 'zuni' });
+    [['う', { tense: 'pres' }], ['った', { tense: 'past' }], ['います', { tense: 'pres', polite: true }], ['いました', { tense: 'past', polite: true }], ['って', { form: 'te' }]]
+      .forEach(([x, f]) => V('cha', x, Object.assign({ chau: true }, f)));
   }
   function verbEndings(st) {
     const out = [];
@@ -202,38 +207,46 @@
     return out;
   }
   // a verb's stems from its dictionary form (in kanji or in kana) → verbEndings; kuru changes its kana (来る くる / 来ます きます)
-  function verbStems(d, cls, kana) { const o = stems0(d, cls, kana); if (o) o.ta = past(o.te); return o; }
+  function verbStems(d, cls, kana) {
+    const o = stems0(d, cls, kana);
+    if (o) { o.ta = past(o.te); o.cha = o.te.slice(0, -1) + (o.te.slice(-1) === 'で' ? 'じゃ' : 'ちゃ'); }
+    return o;
+  }
+  // (the honorific -aru verbs: ございます, くださいます, いらっしゃいます, おっしゃい, なさい)
+  const HON_ARU = /(ござる|くださる|下さる|いらっしゃる|おっしゃる|仰る|なさる)$/;
   function stems0(d, cls, kana) {
     if (cls === 'suru') {
       const P = d.slice(0, -2);
-      return { dict: d, i: P + 'し', a: P + 'し', te: P + 'して', pot: P + 'でき', pass: P + 'され', caus: P + 'させ', vol: P + 'しよう', ba: P + 'すれば', imp: P + 'しろ' };
+      return { dict: d, i: P + 'し', a: P + 'し', zu: P + 'せ', te: P + 'して', pot: P + 'でき', pass: P + 'され', caus: P + 'させ', vol: P + 'しよう', ba: P + 'すれば', imp: P + 'しろ' };
     }
     if (cls === 'kuru') {            // (来る keeps its kanji and changes its reading: [来|き]ます, [来|こ]ない)
       const P = d.slice(0, -2), k = c => P + (kana ? c : '来');
-      return { dict: d, i: k('き'), a: k('こ'), te: k('き') + 'て', pot: k('こ') + 'られ', pot2: k('こ') + 'れ', pass: k('こ') + 'られ', caus: k('こ') + 'させ', vol: k('こ') + 'よう', ba: k('く') + 'れば', imp: k('こ') + 'い' };
+      return { dict: d, i: k('き'), a: k('こ'), zu: k('こ'), te: k('き') + 'て', pot: k('こ') + 'られ', pot2: k('こ') + 'れ', pass: k('こ') + 'られ', caus: k('こ') + 'させ', vol: k('こ') + 'よう', ba: k('く') + 'れば', imp: k('こ') + 'い' };
     }
     if (cls === 'ichidan') {
       const S = d.slice(0, -1);
-      return { dict: d, i: S, a: S, te: S + 'て', pot: S + 'られ', pot2: S + 'れ', caus: S + 'させ', vol: S + 'よう', ba: S + 'れば', imp: S + 'ろ' };
+      return { dict: d, i: S, a: S, zu: S, te: S + 'て', pot: S + 'られ', pot2: S + 'れ', caus: S + 'させ', vol: S + 'よう', ba: S + 'れば', imp: S + 'ろ' };
     }
     const last = d.slice(-1), R = ROWS[last];
     if (!R) return null;
-    const S = d.slice(0, -1);
+    const S = d.slice(0, -1), hon = last === 'る' && HON_ARU.test(d);
     let te = S + TE[last];
     if (/(行|い|ゆ)く$/.test(d) && (d === '行く' || d === 'いく' || d === 'ゆく' || /行く$/.test(d))) te = S + 'って';
-    return { dict: d, i: S + R[1], a: d === 'ある' ? '' : S + R[0], te, pot: S + R[3], pass: S + R[0] + 'れ', caus: S + R[0] + 'せ', vol: S + R[4] + 'う', ba: S + R[3] + 'ば', imp: S + R[3] };
+    return { dict: d, i: hon ? S + 'い' : S + R[1], a: d === 'ある' ? '' : S + R[0], zu: d === 'ある' ? null : S + R[0], te, pot: S + R[3], pass: S + R[0] + 'れ', caus: S + R[0] + 'せ', vol: S + R[4] + 'う', ba: S + R[3] + 'ば', imp: hon ? S + 'い' : S + R[3] };
   }
   function adjForms(e) {          // [surface, reading, f, cost] for an い- or な-adjective
     const out = [];
     if (e.cls === 'i-adj') {
-      const bases = e.s === 'いい' || e.s === '良い' ? [['よ', 'よ'], ['良', 'よ']] : [[e.s.slice(0, -1), e.r.slice(0, -1)]];
-      if (e.s === 'いい') { out.push(['いい', 'いい', { tense: 'pres' }, 0], ['いいです', 'いいです', { tense: 'pres', polite: true }, 0]); }
+      // (a word that ends in いい bends like いい: かっこいい → かっこよかった, 気持ちいい → 気持ちよくない)
+      const yoi = e.s !== 'いい' && /いい$/.test(e.s) && /いい$/.test(e.r);
+      const bases = e.s === 'いい' || e.s === '良い' ? [['よ', 'よ'], ['良', 'よ']] : yoi ? [[e.s.slice(0, -2) + 'よ', e.r.slice(0, -2) + 'よ']] : [[e.s.slice(0, -1), e.r.slice(0, -1)]];
+      if (e.s === 'いい' || yoi) { out.push([e.s, e.r, { tense: 'pres' }, 0], [e.s + 'です', e.r + 'です', { tense: 'pres', polite: true }, 0]); }
       for (const [bs, br] of bases) [['い', { tense: 'pres' }], ['いです', { tense: 'pres', polite: true }], ['くない', { tense: 'pres', neg: true }],
         ['かった', { tense: 'past' }], ['くなかった', { tense: 'past', neg: true }], ['くて', { form: 'te' }], ['く', { form: 'adv' }], ['ければ', { cond: 'ba' }],
         ['かったら', { cond: 'tara' }], ['くありません', { tense: 'pres', neg: true, polite: true }], ['くありませんでした', { tense: 'past', neg: true, polite: true }],
         ['くないです', { tense: 'pres', neg: true, polite: true }], ['かったです', { tense: 'past', polite: true }], ['くなかったです', { tense: 'past', neg: true, polite: true }],
         ['そう', { form: 'sou' }], ['すぎる', { form: 'too' }], ['さ', { form: 'noun' }], ['くなくて', { form: 'te', neg: true }], ['くなく', { form: 'adv', neg: true }], ['くても', { form: 'te', mo: true }]]
-        .forEach(([x, f]) => { if (!(e.s === 'いい' && bs === 'よ' && /^い/.test(x))) out.push([bs + x, br + x, f, 0]); });
+        .forEach(([x, f]) => { if (!((e.s === 'いい' && bs === 'よ' || yoi) && /^い/.test(x))) out.push([bs + x, br + x, f, 0]); });
       return out;
     }
     const S = e.s, R = e.r;
@@ -242,7 +255,7 @@
       ['じゃないです', { tense: 'pres', neg: true, polite: true }], ['じゃありません', { tense: 'pres', neg: true, polite: true }], ['ではありません', { tense: 'pres', neg: true, polite: true }],
       ['じゃなかった', { tense: 'past', neg: true }], ['ではなかった', { tense: 'past', neg: true }], ['じゃありませんでした', { tense: 'past', neg: true, polite: true }],
       ['ではありませんでした', { tense: 'past', neg: true, polite: true }], ['で', { form: 'te' }], ['なら', { cond: 'nara' }], ['でしょう', { mood: 'vol', polite: true }],
-      ['じゃなくて', { form: 'te', neg: true }], ['ではなくて', { form: 'te', neg: true }], ['じゃなくても', { form: 'te', neg: true, mo: true }]]
+      ['じゃなくて', { form: 'te', neg: true }], ['ではなくて', { form: 'te', neg: true }], ['じゃなくても', { form: 'te', neg: true, mo: true }], ['さ', { form: 'noun' }]]
       .forEach(([x, f]) => out.push([S + x, R + x, f, 0]));
     if (/い$/.test(S)) {        // a な-adjective that looks like an い-one (きれい, きらい): the forms learners make by mistake
       const s0 = S.slice(0, -1), r0 = R.slice(0, -1);
@@ -372,12 +385,33 @@
           for (const v of vals) { let k = 0; while (k < pre.length && k < v.length && pre[k] === v[k]) k++; pre = pre.slice(0, k); }
           if (pre) out.add(looseKey(pre)); else vals.forEach(v => out.add(looseKey(v.slice(0, 1))));
         }
-      } else if (e.cls === 'i-adj') (e.s === 'いい' || e.s === '良い' ? ['い', 'よ', '良'] : [e.s.slice(0, -1) || e.s.slice(0, 1), e.r.slice(0, -1) || e.r.slice(0, 1)]).forEach(b => out.add(looseKey(b)));
+      } else if (e.cls === 'i-adj') (e.s === 'いい' || e.s === '良い' ? ['い', 'よ', '良'] : /いい$/.test(e.s) && /いい$/.test(e.r) ? [e.s.slice(0, -2), e.r.slice(0, -2)]
+        : [e.s.slice(0, -1) || e.s.slice(0, 1), e.r.slice(0, -1) || e.r.slice(0, 1)]).forEach(b => out.add(looseKey(b)));
       else { out.add(looseKey(e.s)); out.add(looseKey(e.r)); }
       out.delete('');
       return out;
     }
     const ensure = key => { for (let p = 1; p <= key.length; p++) { const se = STEMS.get(key.slice(0, p)); if (se) for (const e of se) if (!e._x) expand(e); } };
+    // (for a word written out exactly, like LEX's [跳|と]んで: only the words whose written stems it starts with; a form's
+    //  surface is its written stem + an ending, so nothing else can be it, and the build stays quick)
+    function writtenStems(e) {
+      if (e._ws !== undefined) return e._ws;
+      let w;
+      if (e.pos !== 'v') w = e.cls === 'na-adj' ? [e.s] : e.s === 'いい' || e.s === '良い' ? ['い', 'よ', '良'] : /いい$/.test(e.s) ? [e.s.slice(0, -2)] : [e.s.slice(0, -1)];
+      else {
+        const st = verbStems(e.s, e.cls, !hasHan(e.s));
+        w = st ? [...new Set(Object.values(st).filter(v => v))] : null;
+        if (w && e.cls === 'suru') w.push(e.s.slice(0, -2));
+      }
+      return (e._ws = w ? w.filter(x => x) : null);
+    }
+    const mayForm = (e, s) => { const w = writtenStems(e); return !w || w.some(x => s.startsWith(x)); };
+    // (→ the word itself when it's written in its dictionary form, 回す: nothing needs writing out for that)
+    const ensureFor = (s, key) => {
+      for (let p = 1; p <= key.length; p++) { const se = STEMS.get(key.slice(0, p)); if (se) for (const e of se) if (e.s === s) return e; }
+      for (let p = 1; p <= key.length; p++) { const se = STEMS.get(key.slice(0, p)); if (se) for (const e of se) if (!e._x && mayForm(e, s)) expand(e); }
+      return null;
+    };
     function addEntry(e) {
       E.set(e.id, e);
       if ((e.pos === 'v' || e.pos === 'adj') && e.cls) {
@@ -430,12 +464,13 @@
         const it = LEX.item(id);
         if (!it || typeof it.ja !== 'string' || !it.ja) continue;
         linked.add(id);
-        const s = plainOf(it.ja), r = readOf(it.ja);
+        const toks = CJK.parse(it.ja, 'ja').filter(t => t.segs);
+        const s = toks.map(t => t.s).join(''), r = toks.map(t => t.r || toHira(t.s)).join('');
         if (!s) continue;
-        const one = CJK.parse(it.ja, 'ja').filter(t => t.segs).length === 1, k0 = looseKey(s);
+        const one = toks.length === 1, k0 = looseKey(s);
         const look = () => (F.get(k0) || []).find(x => x.s === s && x.e.pos !== 'part');
         let hit = one ? look() : null;
-        if (one && !hit) { ensure(k0); hit = look(); }          // (a verb's form, like [跳|と]んで: write out only the words it could be)
+        if (one && !hit) { const d = ensureFor(s, k0); hit = d ? { e: d } : look(); }          // (a verb's form, like [跳|と]んで: write out only the words it could be)
         if (hit) { const e = hit.e; if (!e.lex) e.lex = id; (e.lexs = e.lexs || []).push(id); continue; }
         const e = { id: 'ja:' + s + (E.has('ja:' + s) ? '#' + id : ''), s, r, lemma: one ? (notate(s, r) || it.ja) : it.ja, pos: one && it.kind !== 'phrase' ? (it.kind === 'verb' ? 'v' : 'n') : 'phrase',
           cls: null, band: it.kind === 'phrase' ? 3 : 2, en: it.en || '', tags: [], fl: {}, lex: id, lexs: [id], n: order++, auto: true };
@@ -549,6 +584,9 @@
       SEMI.set(s, k);
       return k;
     }
+    // a unit typed in katakana (ー too): for the katakana run and its cost
+    const kataU = x => !!x && x.k === 'kana' && !x.rom && (!!x.kata || x.ch === 'ー');
+    const KATA_RE = /[ァ-ヺ]/, HIRA_RE = /[ぁ-ゖ]/;
     function cover(X, notation) {
       const n = X.length, best = new Array(n + 1).fill(Infinity), back = new Array(n + 1).fill(null);
       const relax = (j, c, ed) => { if (c < best[j] - 1e-9) { best[j] = c; back[j] = ed; } };
@@ -563,7 +601,7 @@
         if (u.k === 'latin') { relax(i + 1, b + 2, { t: u.cap && !sentStart(i) ? 'name' : 'unk', i, j: i + 1 }); continue; }
         // (kana and kanji must match a form exactly; rōmaji may leave long vowels out or spell them another way, but a
         // form spelled exactly as typed is preferred: «mou» is もう, «mo» is も)
-        let key = '', ex = '', exs = '', prev = '', gaps = 0, rom = false;
+        let key = '', ex = '', exs = '', prev = '', gaps = 0, rom = false, kataAll = true, hira = false, kata = false;
         // (a number in kanji is one run: 十五枚 is 十五 + 枚, not 十 + 五枚; words don't start in the middle of it)
         const midNum = u.k === 'han' && NUMK[u.ch] !== undefined && i > 0 && X[i - 1].k === 'han' && NUMK[X[i - 1].ch] !== undefined && !u.hard;
         for (let j = i; j < n && !midNum; j++) {
@@ -571,11 +609,14 @@
           if ((x.k !== 'han' && x.k !== 'kana') || (j > i && x.hard)) break;
           if (j > i && x.gap) gaps++;
           if (x.rom) rom = true;
+          if (!kataU(x)) kataAll = false;
+          if (x.k === 'kana' && !x.rom && x.ch !== 'ー') { if (x.kata) kata = true; else hira = true; }
           if (x.k === 'han') { key += x.ch; ex += x.ch; exs += x.ch; prev = ''; }
           else {
             ex += LOOSE[x.ch] || x.ch; exs += x.ch;
             if (prev && SMALLX[prev + x.ch]) { key = key.slice(0, -1) + SMALLX[prev + x.ch]; prev = SMALLX[prev + x.ch]; }
-            else if (!(prev && isExt(x.ch, prev))) { key += LOOSE[x.ch] || x.ch; prev = x.ch; }
+            else if (prev && isExt(x.ch, prev)) prev = 'ー';
+            else { key += LOOSE[x.ch] || x.ch; prev = x.ch; }
           }
           if (key.length > maxLen) break;
           const se = STEMS.get(key);
@@ -587,11 +628,13 @@
             for (const r of list) {
               // (typed in kana or kanji: the very spelling, お is not を; in rōmaji wa / o / e may be は / を / へ, and a long
               // vowel may be ō, ou or oo: «chīzu» is チーズ, «chizu» 地図)
-              const same = rom ? semiR(r.s) === exR || semiR(r.r) === exR : toHira(r.s) === exs || toHira(r.r) === exs;
+              // (but a word that starts with は / を / へ is never typed wa / o / e: «waite» is 湧いて, not 履いて; only the particles are)
+              const same = rom ? (semiR(r.s) === exR || semiR(r.r) === exR) && !(r.r.length > 1 && /^[はをへ]/.test(r.r) && exs[0] !== r.r[0]) : toHira(r.s) === exs || toHira(r.r) === exs;
               if (!rom && !same) continue;
               // (a loose match costs more; a space the player typed is a word break unless nothing else reads: «wo shimashita»
-              // is を しました, not 押しました)
-              sc.push({ r, c: recCost(r) + (same ? -0.1 : 0.7) + gaps * 3 });
+              // is を しました, not 押しました; katakana read as a word that isn't written in katakana costs a little more)
+              // (and a word read across hiragana and katakana is rarely meant: は + カレ is no 計れ)
+              sc.push({ r, c: recCost(r) + (same ? -0.1 : 0.7) + gaps * 3 + (kataAll && !KATA_RE.test(r.s) ? 0.6 : 0) + (hira && kata && !(KATA_RE.test(r.s) && HIRA_RE.test(r.s)) ? 1 : 0) });
             }
             if (sc.length) {
               sc.sort((a, z) => a.c - z.c || a.r.e.n - z.r.e.n);
@@ -616,6 +659,14 @@
           while (i + L < n && X[i + L].run === u.run) L++;
           relax(i + L, b + (u.honNext ? 0.2 : sentStart(i) ? 3.5 : 1.6), { t: 'name', i, j: i + L });
         }
+        // a katakana run the dictionary doesn't know as a whole (a name, a loanword) is one unknown word, not kana words that happen to
+        // fit: ポスター is not ?・巣・?, ミノル not 見・乗る (a known katakana word, or a few words written in katakana, still win; the
+        // run may start after a known one: カレー + ?ライス)
+        if (kataU(u) && u.ch !== 'ー') {
+          let L = 1;
+          while (i + L < n && kataU(X[i + L]) && !X[i + L].hard && !X[i + L].gap) L++;
+          if (L >= 2) relax(i + L, b + 1 + 0.6 * L, { t: 'unk', i, j: i + L });
+        }
         relax(i + 1, b + (u.k === 'han' ? 4 : 3), { t: 'unk', i, j: i + 1 });
       }
       const T = [];
@@ -637,16 +688,40 @@
         const t = T[k];
         if (t.t !== 'w' || t.cands.length < 2) continue;
         const next = T[k + 1], nr = R0(next), pr = R0(T[k - 1]);
-        // a particle can't come right before another particle: が を → 蛾 を (the moth)
-        if (t.cands[0].e.pos === 'part' && nr && nr.e.pos === 'part' && !/^(の|か|よ|ね|な|も|は|から|まで|だけ|しか|って)$/.test(nr.s) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
+        // a particle can't come right before another particle: が を → 蛾 を (the moth); but の can (赤いのを, 行くのが)
+        if (t.cands[0].e.pos === 'part' && t.cands[0].s !== 'の' && nr && nr.e.pos === 'part' && !/^(の|か|よ|ね|な|も|は|から|まで|だけ|しか|って)$/.test(nr.s) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
         // さん after a name or a noun is the honorific (also after a name the dictionary doesn't know: 航さん); before a counter it's 3
         const pt = T[k - 1];
-        if (t.cands.some(r => r.e.fl.hon) && pt && (pt.t === 'name' || pt.t === 'unk' || (pr && (pr.e.pos === 'name' || pr.e.pos === 'n')))) pickR(t, r => r.e.fl.hon);
+        // (and after a word written in katakana, whatever it matched: ミノルさん is a name, not 実る + 三)
+        if (t.cands.some(r => r.e.fl.hon) && pt && (pt.t === 'name' || pt.t === 'unk' || (pr && (pr.e.pos === 'name' || pr.e.pos === 'n'))
+          || (pt.t === 'w' && X.slice(pt.i, pt.j).every(u => u.kata || u.ch === 'ー')))) { pickR(t, r => r.e.fl.hon); continue; }
+        // 〜ておく: おきます after a て-form is 置く (do it in advance), not 起きる (頼んでおきます)
+        if (pr && pr.e.pos === 'v' && pr.f.form === 'te' && t.cands[0].e.id !== 'ja:置く' && t.cands.some(r => r.e.id === 'ja:置く')) { pickR(t, r => r.e.id === 'ja:置く'); continue; }
+        // «katta» after に is 勝った (you beat someone, 試合に勝った), not 買った
+        if (pr && pr.e.pos === 'part' && pr.s === 'に' && t.cands[0].e.id === 'ja:買う' && t.cands.some(r => r.e.id === 'ja:勝つ')) { pickR(t, r => r.e.id === 'ja:勝つ'); continue; }
+        // a potential form after を, or a potential て-form before ください / くれる / いる…, is another verb's plain form: «heya wo kaete»
+        // is 変えて, not 買えて (the potential takes が)
+        const potOff = t.cands[0].f.pot && t.cands.some(r => r.e.pos === 'v' && !r.f.pot && !r.f.pass) && ((pr && pr.e.pos === 'part' && pr.s === 'を')
+          || (t.cands[0].f.form === 'te' && nr && (nr.e.id === 'ja:ください' || /^(くれ|くださ|もら|いただ|おく|おき|しま|み)/.test(nr.s))));
+        if (potOff) { pickR(t, r => r.e.pos === 'v' && !r.f.pot && !r.f.pass); continue; }
+        // and after が, the potential is the likely one: 車が入れない is "cars can't get in" (入る), not "don't put in" (入れる)
+        if (pr && pr.e.pos === 'part' && pr.s === 'が' && t.cands[0].e.pos === 'v' && !t.cands[0].f.pot && t.cands.some(r => r.e.pos === 'v' && r.f.pot && r.e !== t.cands[0].e)) { pickR(t, r => r.e.pos === 'v' && r.f.pot); continue; }
+        // a verb's dictionary form right before です / でした, when the same kana is also a noun, is the noun: «sanmon no toku desu» is
+        // 得です, not 解くです (a learner's «taberu desu» has no noun to be, so it's still caught)
+        if (t.cands[0].e.pos === 'v' && t.cands[0].f.form === 'dict' && nr && nr.e.fl.cop && /^(です|でした)$/.test(nr.s) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
+        // (and a volitional never comes before です: 二倍だそうです is だそう, not 出そう です)
+        if (t.cands[0].f.mood === 'vol' && nr && nr.e.fl.cop && /^(です|でした)$/.test(nr.s) && t.cands.some(r => r.f.mood !== 'vol')) { pickR(t, r => r.f.mood !== 'vol'); continue; }
+        // a noun right before な, when the same reading is a な-adjective, is the adjective: «shinchou na» is 慎重な, not 身長な
+        if (t.cands[0].e.pos === 'n' && nr && nr.s === 'な' && t.cands.some(r => r.e.cls === 'na-adj')) { pickR(t, r => r.e.cls === 'na-adj'); continue; }
+        // a verb's form right before を / が (or は, but not 〜ては) is a noun that reads the same: «shita wo» is 下を, not したを;
+        // «ike ga» is 池が, not 行けが
+        if (t.cands[0].e.pos === 'v' && nr && nr.e.pos === 'part' && (/^(を|が)$/.test(nr.s) || (nr.s === 'は' && t.cands[0].f.form !== 'te')) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
       }
-      // names: an unknown word (or a katakana one) right before さん / くん / ちゃん / 先生 / 様
+      // names: an unknown word (or a katakana one) right before さん / くん / ちゃん / 先生 / 様 (a katakana word that only matched a word
+      // written in kanji or hiragana is a name there: セイジさん, not 政治さん)
       for (let k = 0; k + 1 < T.length; k++) {
         const t = T[k], nr = R0(T[k + 1]);
-        if (nr && nr.e.fl.hon && (t.t === 'unk' || (t.t === 'w' && X.slice(t.i, t.j).every(u => u.kata) && R0(t).e.pos !== 'n'))) t.t = 'name';
+        if (nr && nr.e.fl.hon && (t.t === 'unk' || (t.t === 'w' && X.slice(t.i, t.j).every(u => u.kata || u.ch === 'ー') && (R0(t).e.pos !== 'n' || !KATA_RE.test(R0(t).e.s))))) t.t = 'name';
       }
       // names: a katakana run the dictionary doesn't know as one word, after 私は / ぼくは … and before です / だ / the end, or after 名前は
       const kat = t => X.slice(t.i, t.j).every(u => u.k === 'kana' && !u.rom && (u.kata || u.ch === 'ー'));
@@ -725,7 +800,7 @@
       });
     }
     const isPred = w => !!w && !w.punct && !!w.id && (w.pos === 'v' || w.pos === 'adj') && !!(w.f.tense || w.f.mood || w.f.cond)
-      && !['te', 'stem', 'attr', 'adv', 'nagara', 'noun', 'sou', 'too', 'tari'].includes(w.f.form);
+      && !['te', 'stem', 'attr', 'adv', 'nagara', 'noun', 'sou', 'too', 'tari', 'zu', 'zuni'].includes(w.f.form);
     // the sentences of an analysis: [[word indices]] split at 。！？
     function sentencesOf(ws) {
       const S = [];
@@ -836,7 +911,9 @@
 
     // ------------------------------------------------------------ the checks (only what's sure: a false alarm is far worse than a miss)
     const GA_OK_NEXT = /^(な|に|なる|なり|なっ)/;
+    const OBJ_TAGS = new Set(['food', 'drink', 'clothes', 'home', 'school', 'tech', 'hobby', 'music', 'art', 'story', 'money', 'shop', 'transport', 'sport', 'color', 'number', 'language']);
     const OBJ_CNT = new Set(['つ', '人', '匹', '本', '杯', '冊', '枚', '個', '台', '足', '着', '軒', '頭', '羽', '通', '曲', '部']);
+    const NI_OK = new Set(['ja:書く', 'ja:描く', 'ja:投げる', 'ja:打つ', 'ja:片付ける', 'ja:使う', 'ja:作る', 'ja:話す', 'ja:聞く', 'ja:教える', 'ja:歌う']);
     function check(a, opts = {}) {
       const errs = [];
       if (!a || a.lang !== 'ja' || !a.words || !a.words.length) return errs;
@@ -869,7 +946,9 @@
             let objPlace = false;
             while (j < n && ((isNoun(at(j)) && isPart(at(j + 1), 'を')) || isPart(at(j), 'を') || at(j).pos === 'adv' || at(j).num != null)) { if (FL(at(j), 'place')) objPlace = true; j++; }
             const v = at(j), nounSuru = !!v && v.f.form === 'noun' && !!at(j + 1) && at(j + 1).id === 'ja:する';     // (勉強 します, typed apart)
-            if (v && FL(v, 'act') && !objPlace && ((v.pos === 'v' && v.f.form !== 'stem' && v.f.form !== 'noun') || nounSuru))
+            // (a place に + する is choosing it: どんなお店にしたいですか; and some verbs take に for where a thing goes or who hears it:
+            //  黒板に書く, 庭に池を作る, 教室にメールを書く, 港に話す)
+            if (v && FL(v, 'act') && !objPlace && !(j === q + 1 && v.id === 'ja:する') && !NI_OK.has(v.id) && ((v.pos === 'v' && v.f.form !== 'stem' && v.f.form !== 'noun') || nounSuru))
               add('particle.de', 'major', sen[q], sen[q], 'で', `Where something is done takes ${Q('で')}: ${Q(prev.src + ' で')}.`);
             continue;
           }
@@ -893,20 +972,22 @@
             continue;
           }
           // particle: a thing が + a verb that takes an object → を (本が読みます → 本を読みます)
-          if (isPart(w, 'が') && prev && isNoun(prev) && !animate(prev) && !FL(prev, 'place') && next && next.pos === 'v' && FL(next, 'vt') && !anyWo(sen)
-            && !(next.f.pot || next.f.pass || next.f.want || next.f.caus) && !(next.f.form === 'te' && next2 && next2.form && /^あ/.test(next2.read || ''))) {
+          // (only a noun that's clearly a thing: 農家が寄付して, farmers giving, is right; and X が する is a sense: 音がする, 味がする)
+          if (isPart(w, 'が') && prev && isNoun(prev) && !animate(prev) && prev.tags.some(g => OBJ_TAGS.has(g)) && !FL(prev, 'place') && next && next.pos === 'v' && FL(next, 'vt') && next.id !== 'ja:する' && next.f.form !== 'stem' && !anyWo(sen)
+            && !(next.f.pot || next.f.pass || next.f.want || next.f.caus || next.f.mood) && !(next.f.form === 'te' && next2 && next2.form && /^あ/.test(next2.read || ''))) {
             add('particle.o', 'major', sen[q], sen[q], 'を', `What you ${enBase(next.en)} takes ${Q('を')}: ${Q(prev.src + ' を ' + next.src)}.`);
             continue;
           }
           // adj: 高いでした → 高かったです · 高いだった → 高かった · 高いじゃない → 高くない
-          if (w.pos === 'adj' && w.cls === 'i-adj' && w.f.tense === 'pres' && !w.f.polite && !w.f.neg && next && FL(next, 'cop')) {
+          // (but 早いじゃないですか / 高いじゃないか is "isn't it!", said on purpose)
+          if (w.pos === 'adj' && w.cls === 'i-adj' && w.f.tense === 'pres' && !w.f.polite && !w.f.neg && next && FL(next, 'cop') && !(/^(じゃない|じゃないです|ではない|ではないです)$/.test(next.form) && isPart(next2, 'か'))) {
             const tgt = has(next, 'でした') ? { tense: 'past', polite: true } : has(next, 'だった') ? { tense: 'past' } : /^(じゃない|ではない)$/.test(next.form) ? { tense: 'pres', neg: true }
               : /^(じゃありません|ではありません|じゃないです)$/.test(next.form) ? { tense: 'pres', neg: true, polite: true } : /^(じゃなかった|ではなかった)$/.test(next.form) ? { tense: 'past', neg: true } : null;
             const fx = tgt && reform(w, tgt);
             if (fx) { add('adj.i', 'major', sen[q], sen[q + 1], fx, `An い-adjective changes itself: ${Q(fx)}, not ${Q(w.src + ' ' + next.src)}.`); continue; }
           }
-          // adj: 静か公園 → 静かな公園 (a な-adjective before a noun)
-          if (w.pos === 'adj' && w.cls === 'na-adj' && w.f.form === 'stem' && !FL(w, 'cmp') && next && next.pos === 'n' && !next.counter && !next.f.form) {
+          // adj: 静か公園 → 静かな公園 (a な-adjective before a noun; not across a comma or a pause: お見事…コインをどうぞ)
+          if (w.pos === 'adj' && w.cls === 'na-adj' && w.f.form === 'stem' && !FL(w, 'cmp') && next && next.pos === 'n' && !next.counter && !next.f.form && sen[q + 1] === sen[q] + 1) {
             const fx = reform(w, { form: 'attr' });
             if (fx) { add('adj.na', 'major', sen[q], sen[q], fx, `A な-adjective takes ${Q('な')} before a noun: ${Q(fx + ' ' + next.src)}.`); continue; }
           }
@@ -920,30 +1001,45 @@
             const e = E.get(w.id), fx = e && (notate(e.s + w.f.right, e.r + w.f.right) || e.s + w.f.right);
             if (fx) { add('adj.na', 'major', sen[q], sen[q], w.src && !hasHan(w.src) ? e.r + w.f.right : fx, `${Q(e.lemma)} is a な-adjective: ${Q(w.src && !hasHan(w.src) ? e.r + w.f.right : fx)}.`); continue; }
           }
-          // polite: a plain verb + です (行くです → 行きます)
-          if (w.pos === 'v' && w.cls && !w.f.polite && (w.f.form === 'dict' || w.f.tense) && !w.f.want && next && FL(next, 'cop') && /^(です|でした)$/.test(next.form) && !(next2 && isPart(next2, 'か') && false)) {
+          // polite: a plain verb + です (行くです → 行きます; not a word in quotes: 「話す」です)
+          if (w.pos === 'v' && w.cls && !w.f.polite && (w.f.form === 'dict' || w.f.tense) && !w.f.want && next && FL(next, 'cop') && /^(です|でした)$/.test(next.form) && !(next2 && isPart(next2, 'か') && false) && sen[q + 1] === sen[q] + 1) {
             const fx = reform(w, Object.assign({}, w.f, { polite: true, tense: has(next, 'でした') ? 'past' : w.f.tense || 'pres' }));
             if (fx) { add('polite.verb', 'minor', sen[q], sen[q + 1], fx, `A verb shows politeness itself: ${Q(fx)}.`); continue; }
           }
         }
         // tense: a past time word with a non-past main verb (昨日映画を見ます → 見ました), or a future one with a past verb
         const tp = sen.findIndex(k => FL(ws[k], 'tp')), tf = sen.findIndex(k => FL(ws[k], 'tf'));
-        let mainQ = -1;
-        for (let q = n - 1; q >= 0; q--) if (isPred(at(q))) { mainQ = q; break; }
+        // (the main verb: the last one that isn't describing a noun, 書いたリズム; a sentence that ends in a request, 読んでください, has none)
+        let mainQ = -1, lastQ = n - 1;
+        while (lastQ >= 0 && isPart(at(lastQ))) lastQ--;
+        const req = lastQ >= 0 && (at(lastQ).id === 'ja:ください' || (at(lastQ).pos === 'v' && at(lastQ).f.form === 'te'));
+        if (!req) for (let q = n - 1; q >= 0; q--) if (isPred(at(q)) && !(at(q + 1) && (isNoun(at(q + 1)) || at(q + 1).unknown))) { mainQ = q; break; }
         const main = at(mainQ);
         const subPast = q0 => sen.slice(q0 + 1, mainQ).some(k => isPred(ws[k]) && ws[k].f.tense === 'past');
-        if (main && tp >= 0 && tp < mainQ && !isPart(at(tp + 1), 'から', 'まで') && !subPast(tp) && main.f.tense === 'pres' && !main.f.cond && !main.f.mood && !has(main, 'つもり')) {
+        // (a time word is the verb's time only when it stands alone or takes は / に / も: 来月の試験, 昨日と同じ, 昨日が見える,
+        //  去年の倍, 明日では, 来年から, or 明日… said and left hanging, are about something else)
+        const asTime = q0 => !isPart(at(q0 + 1), 'の', 'と', 'が', 'を', 'で', 'では', 'から', 'まで') && !(ws[sen[q0] + 1] && ws[sen[q0] + 1].punct && /[…‥]/.test(ws[sen[q0] + 1].t));
+        if (main && tp >= 0 && tp < mainQ && asTime(tp) && tf < 0 && !subPast(tp) && main.f.tense === 'pres' && !main.f.cond && !main.f.mood && !has(main, 'つもり')) {
           const fx = reform(main, Object.assign({}, main.f, { tense: 'past' }));
           if (fx) add('tense.past', 'major', sen[mainQ], sen[mainQ], fx, `After ${Q(S(sen[tp]))}, use the past: ${Q(fx)}.`);
         }
-        if (main && tf >= 0 && tf < mainQ && main.f.tense === 'past' && !main.f.cond && tp < 0) {
+        // (a change or a decision already made is past whatever its time: 来週の教室は木曜日になりました, これから…することにしました)
+        const decided = main && (['ja:なる', 'ja:変わる', 'ja:決まる'].includes(main.id) || (main.id === 'ja:する' && isPart(at(mainQ - 1), 'に') && at(mainQ - 2) && /^(こと|事)$/.test(at(mainQ - 2).form || '')));
+        if (main && tf >= 0 && tf < mainQ && asTime(tf) && !decided && main.f.tense === 'past' && !main.f.cond && tp < 0) {
           const fx = reform(main, Object.assign({}, main.f, { tense: 'pres' }));
           if (fx) add('tense.fut', 'major', sen[mainQ], sen[mainQ], fx, `${Q(S(sen[tf]))} hasn't happened yet: ${Q(fx)}.`);
         }
       }
       // polite (only an A): です / ます in one sentence and plain forms in another, in the same answer
       {
-        const finals = sentencesOf(ws).map(sen => { for (let q = sen.length - 1; q >= 0; q--) if (isPred(ws[sen[q]]) || (FL(ws[sen[q]], 'cop') && ws[sen[q]].f.tense)) return sen[q]; return -1; }).filter(k => k >= 0);
+        // (a sentence's final form is its last word before the closing particles; one that ends in a request, a noun or a phrase has none;
+        //  one inside 「quotes」 is someone else's words: 「わたしが上ります！」 in a plain answer is fine)
+        const inQuote = k => {
+          let d = 0, s = 0;
+          for (let j = 0; j < k; j++) if (ws[j].punct) { const t = ws[j].t; d += (t.match(/[「『“]/g) || []).length - (t.match(/[」』”]/g) || []).length; s += (t.match(/"/g) || []).length; }
+          return d > 0 || s % 2 === 1;
+        };
+        const finals = sentencesOf(ws).map(sen => { for (let q = sen.length - 1; q >= 0; q--) { const w = ws[sen[q]]; if (w.pos === 'part') continue; return isPred(w) || (FL(w, 'cop') && w.f.tense) ? sen[q] : -1; } return -1; }).filter(k => k >= 0 && !inQuote(k));
         const pol = finals.filter(k => ws[k].f.polite), plain = finals.filter(k => !ws[k].f.polite && !ws[k].f.mood);
         if (pol.length && plain.length) for (const k of plain) {
           const fx = reform(ws[k], Object.assign({}, ws[k].f, { polite: true, form: undefined }));
@@ -954,11 +1050,14 @@
       for (let k = 0; k < ws.length; k++) {
         const c = ws[k];
         if (!c.counter || c.num == null || c.num < 1 || c.num > 10 || !OBJ_CNT.has(c.counter)) continue;     // (十年, 三時間, 二回: how long or how often, never what's counted)
+        if (c.counter === '部' && c.num === 1 && isPart(ws[k + 1], 'の')) continue;                             // (一部の住民: some of the residents)
+        if (ws[k + 1] && ws[k + 1].counter && ws[k + 1].num != null) continue;                                    // (本は一人五冊まで: five each)
         let N = null;
         const p1 = ws[k - 1], p2 = ws[k - 2];
-        if (p1 && isNoun(p1) && p1.counters) N = p1;
+        // (二つのグループ: what's counted is the noun after の, when there is one; one the dictionary doesn't count, or doesn't know, isn't judged)
+        if (isPart(ws[k + 1], 'の') && ws[k + 2] && (isNoun(ws[k + 2]) || ws[k + 2].unknown)) N = ws[k + 2].counters ? ws[k + 2] : null;
+        else if (p1 && isNoun(p1) && p1.counters) N = p1;
         else if (p1 && isPart(p1, 'が', 'を', 'は', 'も') && p2 && isNoun(p2) && p2.counters) N = p2;
-        else if (isPart(ws[k + 1], 'の') && ws[k + 2] && isNoun(ws[k + 2]) && ws[k + 2].counters) N = ws[k + 2];
         if (!N) continue;
         const ck = c.counter, okList = N.counters.concat(N.counters.includes('個') ? ['つ'] : N.counters.includes('つ') ? ['個'] : []);
         if (okList.includes(ck.split('#')[0]) || okList.includes(ck)) continue;
@@ -997,6 +1096,8 @@
       if (e.pos === 'v' && !e.fl.cop) {
         const core = enBase(en);
         if (f.form === 'noun') return en;
+        if (f.form === 'zu' || f.form === 'zuni') return 'without ' + enIng(en);
+        if (f.chau && f.form !== 'te') return (f.tense === 'past' ? 'ended up ' : 'end up ') + enIng(en);
         if (f.want) return (f.neg ? (f.tense === 'past' ? "didn't want to " : "don't want to ") : f.tense === 'past' ? 'wanted to ' : 'want to ') + core;
         if (f.pot) return (f.neg ? (f.tense === 'past' ? "couldn't " : "can't ") : f.tense === 'past' ? 'could ' : 'can ') + core;
         if (f.pass) return (f.tense === 'past' ? 'was ' : 'is ') + (f.neg ? 'not ' : '') + enPart(en);
@@ -1038,6 +1139,8 @@
       if (f.form === 'adv') d.push('adverb (に / く)');
       if (f.form === 'nagara') d.push('ながら (while)');
       if (f.form === 'tari') d.push('たり (things like)');
+      if (f.form === 'zu' || f.form === 'zuni') d.push('ずに (without)');
+      if (f.chau) d.push('ちゃう (casual てしまう)');
       if (f.mo) d.push('ても (even if)');
       if (f.mood === 'vol') d.push("volitional (let's)");
       if (f.mood === 'imp') d.push('command');
@@ -1199,7 +1302,7 @@
 より part2 than
 や part2 and (among others)
 など part3 and so on
-だけ part2 only, just
+だけ part2 only, just =w.ml_only
 しか part2 only (with a negative)
 ばかり part3 nothing but
 くらい part2 about, around
@@ -1454,7 +1557,7 @@
 後ろ うしろ n1 behind @place %loc
 さっき adv3 a moment ago @time %tp
 この前 このまえ n2 the other day @time %tp
-今度 こんど n2 next time; this time @time %tf
+今度 こんど n2 next time; this time @time
 将来 しょうらい n2 the future @time %tf
 昔 むかし n2 long ago, the old days @time
 最近 さいきん n2 lately @time
@@ -1577,7 +1680,7 @@
 着く つく vg2 arrive %go,when
 開く あく vg2 open (by itself)
 置く おく vg2 put %vt
-引く ひく vg2 pull %vt
+引く ひく vg2 pull; (water) go down
 弾く ひく vg2 play (the piano, the guitar) %vt,act @music
 咲く さく vg2 bloom @nature
 描く かく vg3 draw, paint %vt,act @art
@@ -1599,7 +1702,7 @@
 渡す わたす vg2 hand over %vt
 直す なおす vg2 fix %vt
 落とす おとす vg2 drop %vt
-無くす なくす vg3 lose %vt
+無くす なくす vg3 lose %vt =w.ml_lose
 起こす おこす vg3 wake (someone) up %vt
 引っ越す ひっこす vg2 move (house) @home
 待つ まつ vg1 wait %vt,act =c.wait
@@ -1640,14 +1743,14 @@
 座る すわる vg2 sit %ni
 走る はしる vg1 run %act @sport
 降る ふる vg1 fall (rain, snow) @weather
-登る のぼる vg2 climb =v.climb %go
+登る のぼる vg2 climb =v.climb
 困る こまる vg2 be in trouble
 触る さわる vg3 touch
 送る おくる vg2 send %vt
 売る うる vg2 sell %vt @shop
 切る きる vg1 cut %vt
 曲がる まがる vg2 turn
-止まる とまる vg2 stop
+止まる とまる vg2 stop; land (on a branch) =w.gd_land
 泊まる とまる vg2 stay (the night) %ni @travel
 集まる あつまる vg3 gather
 決まる きまる vg3 be decided
@@ -1750,7 +1853,7 @@
 速い はやい ai1 fast
 遅い おそい ai1 late; slow
 難しい むずかしい ai1 difficult
-優しい やさしい ai2 kind, gentle +
+優しい やさしい ai2 kind, gentle + =w.gd_kind
 易しい やさしい ai2 easy
 楽しい たのしい ai1 fun, enjoyable @feeling +
 面白い おもしろい ai1 interesting, funny +
@@ -1765,7 +1868,7 @@
 忙しい いそがしい ai1 busy
 嬉しい うれしい ai1 happy, glad @feeling +
 悲しい かなしい ai2 sad @feeling -
-寂しい さびしい ai2 lonely @feeling -
+寂しい さびしい ai2 lonely @feeling - =w.pf_lonely
 怖い こわい ai2 scary; scared @feeling
 恥ずかしい はずかしい ai2 embarrassed @feeling
 痛い いたい ai1 it hurts, painful @health
@@ -1779,7 +1882,7 @@
 重い おもい ai2 heavy
 軽い かるい ai2 light
 広い ひろい ai1 wide, roomy
-狭い せまい ai1 narrow, cramped
+狭い せまい ai1 narrow, cramped =w.pkp_narrow
 明るい あかるい ai1 bright; cheerful
 暗い くらい ai1 dark
 太い ふとい ai2 thick
@@ -1792,12 +1895,12 @@
 深い ふかい ai2 deep
 浅い あさい ai3 shallow
 固い かたい ai3 hard
-柔らかい やわらかい ai3 soft
-薄い うすい ai3 thin; light (color)
+柔らかい やわらかい ai3 soft =w.pkf_soft
+薄い うすい ai3 thin; light (color) =w.pkf_thin
 珍しい めずらしい ai3 rare, unusual
 正しい ただしい ai3 right, correct
 詳しい くわしい ai3 detailed
-素晴らしい すばらしい ai3 wonderful +
+素晴らしい すばらしい ai3 wonderful + =w.lp_magnificent
 懐かしい なつかしい ai3 nostalgic
 羨ましい うらやましい ai3 envious
 親しい したしい ai3 close (friends)
@@ -1810,7 +1913,7 @@
 黒い くろい ai1 black @color
 黄色い きいろい ai1 yellow =a.yellow @color
 茶色い ちゃいろい ai2 brown @color
-欲しい ほしい ai1 want (a thing) %ga
+欲しい ほしい ai1 want (a thing) %ga =w.pf_iwant
 ない ai1 there isn't; not
 // ---- な-adjectives
 好き すき an1 like %ga +
@@ -1852,7 +1955,7 @@
 真面目 まじめ an2 serious, hard-working
 正直 しょうじき an3 honest %cmp
 複雑 ふくざつ an3 complicated
-丁寧 ていねい an3 polite, careful
+丁寧 ていねい an3 polite, careful =w.gd_polite
 確か たしか an3 certain; I think %cmp
 楽 らく an2 easy, comfortable
 嫌 いや an2 unpleasant; no way -
@@ -1984,7 +2087,7 @@
 カエル n2 frog #匹 =n.frog @animal
 カラス n3 crow #羽 =w.crow @animal
 虫 むし n2 bug, insect #匹 @animal
-蝶 ちょう n3 butterfly #匹 @animal
+蝶 ちょう n3 butterfly #匹 @animal =w.gd_butterfly
 蛾 が n4 moth #匹 =n.moth @animal
 カブトムシ n3 beetle #匹 =n.beetle @animal
 アルマジロ n4 armadillo #匹 =n.armadillo @animal
@@ -3023,13 +3126,13 @@
 焼き魚 やきざかな n2 grilled fish @food
 奥 おく n3 the back, the far end, deep inside
 温かい あたたかい ai2 warm (food, drinks, a heart) +
-はずす vg3 take off, undo, set free %vt
+外す はずす vg3 take off, undo, set free; miss %vt
 閉まる しまる vg2 close, be shut
 のせる vi3 put on top %vt
 リーダー n2 leader, boss @people,work
 一日中 いちにちじゅう adv3 all day long @time
 じっと adv3 still, without moving; fixedly
-かも part3 maybe (…かもしれない)
+かも part3 maybe (…かもしれない) =w.lp_maybe
 ニュース n1 news
 明かり あかり n3 a light, a lamp
 ようこそ int2 welcome!
@@ -3133,6 +3236,1175 @@
 くださいませ phrase3 (very polite) please (…てくださいませ)
 番線 ばんせん n3 platform number (六番線: platform 6) @travel,place
 線 せん n3 line (a train line, a drawn line) @travel
+`);
+  W.push(`
+// ---- DX-CJK (the B2 round, 2026-11-27): grammar words, and the words the letters, debates, jobs and club books asked for
+たち n2 (after people) the plural: 子どもたち, 生徒たち @people
+達 たち n3 (the plural, in kanji: 私達) @people
+子ども こども n1 child (also 子供) @family,people
+べき part3 should (…べきだ, …べきです)
+ござる vg3 (very polite) be, there is: ございます
+いらっしゃる vg3 (honorific) come, go, be: いらっしゃいます
+おっしゃる vg3 (honorific) say: おっしゃいます
+なさる vg4 (honorific) do: なさいます
+替える かえる vi3 change, replace (one thing for another) %vt
+換える かえる vi4 exchange %vt
+スケート n3 skating @sport
+転ぶ ころぶ vg3 fall over
+倍 ばい cl3 times, -fold (二倍: twice as much)
+二等賞 にとうしょう n4 second prize
+まるで adv3 just like, as if (まるで…のように)
+料理長 りょうりちょう n4 head chef @work,food
+距離 きょり n4 distance
+寮 りょう n3 dormitory @school,home
+技 わざ n4 technique, skill
+真っ白 まっしろ an3 pure white @color
+タブレット n3 tablet (computer) @tech
+オンライン n3 online @tech
+つながる vg3 connect, be connected
+画面 がめん n3 screen @tech
+怖がる こわがる vg3 be afraid (of) @feeling
+痛める いためる vi4 hurt (a part of the body: 腰を痛める) %vt @health
+手放す てばなす vg4 let go of, part with %vt
+旦那 だんな n4 husband (旦那さん: someone's husband) @family
+恐れる おそれる vi4 fear @feeling
+一生 いっしょう n3 a lifetime; all your life
+満足する まんぞくする vs3 be satisfied; satisfaction + @feeling
+ボール n2 ball @sport
+禁止する きんしする vs3 ban, forbid; a ban %vt
+当たる あたる vg3 hit, strike; win (a prize)
+幸い さいわい adv4 fortunately
+グラウンド n3 sports ground @sport,school
+放課後 ほうかご n3 after school @school,time
+張る はる vg3 stretch, put up (a net, a tent) %vt
+動かす うごかす vg3 move (something): 体を動かす, exercise %vt
+旅行者 りょこうしゃ n4 traveler @travel,people
+中級 ちゅうきゅう n4 intermediate (level) @school
+観光 かんこう n3 sightseeing @travel
+観光案内所 かんこうあんないじょ n4 tourist information office @travel,place
+募集する ぼしゅうする vs4 recruit, look for (people); recruitment %vt @work
+討論する とうろんする vs4 debate, discuss; a debate
+毎回 まいかい n3 every time @time
+ナッツ n3 nuts @food
+チーム n2 team @sport
+天の川 あまのがわ n4 the Milky Way @nature
+インタビュー n4 interview @work
+記者 きしゃ n4 reporter, journalist #人 @work,people
+原稿 げんこう n4 manuscript, draft @work
+放送する ほうそうする vs4 broadcast; a broadcast @tech
+生放送 なまほうそう n4 live broadcast @tech
+担当する たんとうする vs4 be in charge (of) @work
+採用する さいようする vs4 hire, take on; adopt %vt @work
+対応する たいおうする vs4 deal with, handle; correspond
+行列 ぎょうれつ n4 queue, line (of people)
+役 やく n3 role, part; use
+役に立つ やくにたつ vg3 be useful, help
+任せる まかせる vi4 leave (it) to (someone), entrust %vt
+乗せる のせる vi3 give (someone) a ride, take on board %vt
+移る うつる vg3 move (to another place)
+別 べつ n3 another, separate (別の)
+中止する ちゅうしする vs4 cancel, call off; cancellation %vt
+郵便 ゆうびん n3 mail, post
+配達する はいたつする vs4 deliver; delivery %vt
+申し訳 もうしわけ n4 excuse (申し訳ありません: I'm very sorry)
+少々 しょうしょう adv3 a little, a moment (少々お待ちください)
+号室 ごうしつ cl4 room number (四号室)
+付く#tsuku つく vg3 come with, be attached (朝食付き)
+アレルギー n3 allergy @health
+読者 どくしゃ n4 reader #人 @people
+残る のこる vg3 remain, be left
+残り のこり n3 the rest, what's left
+飼い主 かいぬし n4 (pet) owner #人 @animal,people
+貼る はる vg3 stick, put up (a poster) %vt
+ポスター n3 poster #枚
+レース n3 race (a contest) @sport
+キャプテン n3 captain @sport,people
+元 もと n4 former (元漁師); origin
+誇らしい ほこらしい ai4 proud + @feeling
+待ち遠しい まちどおしい ai4 can't wait for, long-awaited @feeling
+マイク n3 microphone @tech
+コース n3 course, route
+観光客 かんこうきゃく n3 tourist #人 @travel,people
+記事 きじ n4 (news) article
+取材する しゅざいする vs4 gather news, report on; news gathering @work
+他 ほか n2 other, else (the kanji form of ほか)
+見守る みまもる vg4 watch over %vt
+探偵 たんてい n4 detective #人 @story,people
+推理 すいり n4 deduction, reasoning
+証拠 しょうこ n4 evidence, proof
+判断する はんだんする vs4 judge, decide; judgment
+すれ違う すれちがう vg4 pass each other
+面 めん n4 side, aspect; mask
+遠慮する えんりょする vs4 hold back, refrain; reserve
+遠慮なく えんりょなく adv4 without holding back, feel free
+やりとり n4 exchange, back-and-forth
+済む すむ vg3 be finished, be settled; get by
+代わり かわり n3 a substitute; instead (の代わりに)
+作者 さくしゃ n4 author #人 @story,people
+不満 ふまん n4 dissatisfaction, complaint - @feeling
+譲る ゆずる vg4 give up (a seat) for someone, hand over %vt
+つかまる vg3 hold on (to); be caught
+// ---- words the game's own lines use, so new short words don't split them (仮面, not 仮 + 面)
+仮面 かめん n3 mask @art
+路面電車 ろめんでんしゃ n4 tram, streetcar @transport
+バイバイ int2 bye-bye
+足元 あしもと n3 at your feet, underfoot
+ボール紙 ぼーるがみ n4 cardboard
+ターン n3 turn (in a game)
+思い切り おもいきり adv4 with all your might, as much as you like
+カレーライス n2 curry and rice @food
+ライス n3 rice (on a plate) @food
+`);
+  W.push(`
+// ---- work and careers (N3–N2)
+職業 しょくぎょう n3 occupation, job @work
+職場 しょくば n3 workplace @work
+就職する しゅうしょくする vs3 get a job @work
+転職する てんしょくする vs4 change jobs @work
+退職する たいしょくする vs4 leave a job, retire @work
+辞める やめる vi3 quit (a job, a school) %vt @work
+求人 きゅうじん n4 job opening @work
+応募する おうぼする vs4 apply (for a job, a contest) @work
+面接 めんせつ n3 (job) interview @work
+履歴書 りれきしょ n4 résumé, CV #枚 @work
+収入 しゅうにゅう n4 income @money,work
+ボーナス n3 bonus @money,work
+残業する ざんぎょうする vs3 work overtime @work
+出張する しゅっちょうする vs3 go on a business trip @work,travel
+部下 ぶか n4 subordinate, member of your team #人 @work,people
+部長 ぶちょう n4 department head #人 @work,people
+課長 かちょう n4 section chief #人 @work,people
+営業 えいぎょう n4 sales; being open for business @work
+経営する けいえいする vs4 run, manage (a business) %vt @work
+企業 きぎょう n4 company, enterprise @work
+業界 ぎょうかい n4 industry, the business world @work
+部署 ぶしょ n4 department, section @work
+責任 せきにん n3 responsibility
+任務 にんむ n4 duty, mission
+プロジェクト n4 project @work
+書類 しょるい n3 documents, papers #枚 @work
+契約する けいやくする vs4 sign a contract; a contract @work
+取引 とりひき n4 dealings, a deal @work,money
+顧客 こきゃく n4 client, customer #人 @work,shop
+製品 せいひん n4 product @work
+生産する せいさんする vs4 produce, make %vt @work
+技術者 ぎじゅつしゃ n4 engineer, technician #人 @work,people
+専門家 せんもんか n4 expert, specialist #人 @people
+弁護士 べんごし n4 lawyer #人 @work,people
+会計士 かいけいし n4 accountant #人 @work,people
+公務員 こうむいん n4 civil servant #人 @work,people
+パート n3 part-time work @work
+正社員 せいしゃいん n4 full-time employee #人 @work,people
+フリーランス n4 freelance; freelancer @work
+給与 きゅうよ n4 pay, salary @money,work
+昇進する しょうしんする vs4 be promoted @work
+出世 しゅっせ n4 getting ahead (in a career) @work
+資格 しかく n4 qualification, license @work,school
+スキル n4 skill @work
+成果 せいか n4 results, outcome
+効率 こうりつ n4 efficiency
+休暇 きゅうか n4 holiday, time off @work,time
+有給 ゆうきゅう n4 paid (leave) @work
+通勤する つうきんする vs4 commute (to work) @work,transport
+勤務する きんむする vs4 work (somewhere), be on duty @work
+雇う やとう vg4 hire, employ %vt @work
+指示する しじする vs4 instruct; instructions @work
+報告する ほうこくする vs3 report; a report @work
+打ち合わせ うちあわせ n4 (planning) meeting @work
+締め切り しめきり n3 deadline @work,time
+スケジュール n3 schedule @time
+引き受ける ひきうける vi4 take on (a job, a task) %vt @work
+断る ことわる vg3 refuse, turn down %vt
+挑戦する ちょうせんする vs4 take on a challenge; a challenge
+// ---- health and the body (N3–N2)
+症状 しょうじょう n4 symptom @health
+治療する ちりょうする vs4 treat (an illness); treatment @health
+手術する しゅじゅつする vs4 operate; an operation @health
+退院する たいいんする vs3 leave hospital @health
+診察する しんさつする vs4 examine (a patient); a medical exam @health
+診断する しんだんする vs4 diagnose; a diagnosis @health
+検査する けんさする vs4 test, check; a test @health
+薬局 やっきょく n3 pharmacy @health,shop
+処方 しょほう n4 prescription @health
+注射 ちゅうしゃ n4 injection, shot @health
+患者 かんじゃ n4 patient #人 @health,people
+歯医者 はいしゃ n3 dentist #人 @health,people
+救急車 きゅうきゅうしゃ n3 ambulance #台 @health,transport
+怪我 けが n3 injury, wound @health
+骨折する こっせつする vs4 break a bone @health
+傷 きず n4 wound, cut, scratch @health
+咳 せき n3 cough @health
+くしゃみ n3 sneeze @health
+鼻水 はなみず n4 runny nose @health
+頭痛 ずつう n4 headache @health
+腹痛 ふくつう n4 stomachache @health
+吐き気 はきけ n4 nausea, feeling sick @health
+疲れ つかれ n3 tiredness @health
+ストレス n3 stress @health
+睡眠 すいみん n4 sleep @health
+栄養 えいよう n4 nutrition @health,food
+体力 たいりょく n4 stamina, physical strength @health
+免疫 めんえき n4 immunity @health
+血液 けつえき n4 blood @body,health
+心臓 しんぞう n4 heart (the organ) @body
+肺 はい n4 lung @body
+筋肉 きんにく n4 muscle @body
+皮膚 ひふ n4 skin @body
+脳 のう n4 brain @body
+腕 うで n3 arm @body
+膝 ひざ n3 knee @body
+喉 のど n3 throat @body
+唇 くちびる n4 lips @body
+まぶた n4 eyelid @body
+眉 まゆ n4 eyebrow @body
+汗 あせ n3 sweat @body
+呼吸する こきゅうする vs4 breathe; breathing @body
+予防する よぼうする vs4 prevent; prevention %vt @health
+回復する かいふくする vs4 recover; recovery @health
+健診 けんしん n4 health checkup @health
+体調 たいちょう n3 (physical) condition @health
+痛み いたみ n3 pain, ache @health
+かゆい ai3 itchy @health
+だるい ai4 sluggish, heavy (from tiredness) @health
+めまい n4 dizziness @health
+ウイルス n4 virus @health
+感染する かんせんする vs4 be infected, spread; infection @health
+マスク n3 (face) mask #枚 @health
+消毒する しょうどくする vs4 disinfect %vt @health
+手洗い てあらい n3 hand-washing; washroom @health,home
+ダイエット n3 diet (to lose weight) @health
+痩せる やせる vi3 lose weight, get thin @health
+寿命 じゅみょう n4 life span @health
+介護する かいごする vs4 care for (the elderly, the sick); care @health,people
+障害 しょうがい n4 disability; obstacle @health
+車いす くるまいす n4 wheelchair #台 @health
+メンタル n4 mental (health) @health
+カウンセリング n4 counseling @health
+規則正しい きそくただしい ai4 regular, orderly (a life) @health
+早起き はやおき n3 getting up early @time
+深呼吸する しんこきゅうする vs4 take a deep breath @health
+// ---- everyday words the game's lines use, so the new ones don't split them
+席 せき n2 seat #つ @place
+増やす ふやす vg3 increase (something) %vt
+やめる vi2 stop, give up (doing) %vt
+責任者 せきにんしゃ n4 person in charge #人 @work,people
+余裕 よゆう n4 room, margin; time or money to spare
+四角 しかく n3 square @color
+こっち pron2 this way, here (casual) @place %loc
+そっち pron2 that way, there (casual) @place %loc
+あっち pron2 over there (casual) @place %loc
+`);
+  W.push(`
+// ---- news and media (N3–N2)
+報道する ほうどうする vs4 report (the news); coverage @tech
+番組 ばんぐみ n3 (TV, radio) program @tech
+司会 しかい n4 hosting, chairing (a show, a meeting)
+司会者 しかいしゃ n4 host, MC #人 @people
+アナウンサー n3 announcer #人 @work,people
+視聴者 しちょうしゃ n4 viewer #人 @people
+出版する しゅっぱんする vs4 publish %vt @story
+情報 じょうほう n3 information
+話題 わだい n3 topic (of conversation)
+事件 じけん n3 incident, case
+現場 げんば n4 the scene, the site @place
+見出し みだし n4 headline
+広告 こうこく n4 advertisement #枚
+宣伝する せんでんする vs4 advertise, promote %vt
+世論 よろん n4 public opinion
+評判 ひょうばん n4 reputation
+真実 しんじつ n4 truth
+事実 じじつ n4 fact
+発言する はつげんする vs4 speak up, say (in a meeting); a remark
+記録する きろくする vs4 record; a record %vt
+統計 とうけい n4 statistics
+調査する ちょうさする vs4 investigate, survey; a survey %vt
+データ n3 data @tech
+最新 さいしん n4 latest, newest
+速報 そくほう n4 news flash
+中継 ちゅうけい n4 (live) broadcast, relay @tech
+生中継 なまちゅうけい n4 live broadcast @tech
+特集 とくしゅう n4 feature, special edition
+投稿する とうこうする vs4 post (online) @tech
+動画 どうが n3 video @tech
+配信する はいしんする vs4 stream, put out (online) @tech
+フォロワー n4 follower @tech,people
+コメント n3 comment @tech
+ブログ n3 blog @tech
+炎上する えんじょうする vs4 go up in flames; get flamed (online)
+拡散する かくさんする vs4 spread (online)
+// ---- environment and climate (N3–N2)
+温暖化 おんだんか n4 global warming @nature,weather
+気候 きこう n4 climate @weather
+汚染する おせんする vs4 pollute; pollution - @nature
+公害 こうがい n4 pollution (as a public harm) - @nature
+資源 しげん n4 resources @nature
+再利用する さいりようする vs4 reuse %vt @nature
+リサイクル n3 recycling @nature
+分別する ぶんべつする vs4 sort (rubbish) %vt @nature
+節約する せつやくする vs3 save, economize %vt @money
+節電 せつでん n4 saving electricity @nature
+エネルギー n3 energy @nature
+電力 でんりょく n4 electric power @tech
+石油 せきゆ n4 oil, petroleum @nature
+太陽光 たいようこう n4 sunlight; solar power @nature
+排気ガス はいきがす n4 exhaust fumes - @nature
+二酸化炭素 にさんかたんそ n4 carbon dioxide @nature
+森林 しんりん n4 forest @nature
+海洋 かいよう n4 the ocean; marine @nature
+生物 せいぶつ n4 living things; biology @nature
+絶滅する ぜつめつする vs4 die out, become extinct - @nature,animal
+保護する ほごする vs4 protect; protection %vt
+災害 さいがい n4 disaster - @nature
+津波 つなみ n4 tsunami @nature
+噴火する ふんかする vs4 erupt (a volcano) @nature
+異常気象 いじょうきしょう n4 extreme weather @weather
+水不足 みずぶそく n4 water shortage @nature
+大気 たいき n4 the atmosphere, the air @nature
+酸素 さんそ n4 oxygen @nature
+生態系 せいたいけい n4 ecosystem @nature
+環境問題 かんきょうもんだい n4 environmental problem @nature
+エコ n4 eco-friendly; ecology @nature
+持続可能 じぞくかのう an4 sustainable @nature
+プラスチック n3 plastic
+レジ袋 れじぶくろ n4 plastic shopping bag #枚 @shop
+使い捨て つかいすて n4 disposable, throwaway
+有害 ゆうがい an4 harmful -
+減らす へらす vg3 reduce, cut down %vt
+// ---- technology and the internet (N3–N2)
+技術 ぎじゅつ n3 technology, technique, skill @tech
+装置 そうち n4 device, equipment @tech
+機能 きのう n4 function, feature @tech
+性能 せいのう n4 performance (of a machine) @tech
+操作する そうさする vs4 operate, use (a device) %vt @tech
+設定する せっていする vs4 set up; settings %vt @tech
+充電する じゅうでんする vs4 charge (a battery) %vt @tech
+充電器 じゅうでんき n4 charger #個 @tech
+電源 でんげん n4 power (supply), the power switch @tech
+ソフト n4 software @tech
+ウェブサイト n4 website @tech
+サイト n4 (web)site @tech
+アカウント n4 account @tech
+ログインする ろぐいんする vs4 log in @tech
+ダウンロードする だうんろーどする vs3 download %vt @tech
+アップロードする あっぷろーどする vs4 upload %vt @tech
+検索する けんさくする vs4 search (online) %vt @tech
+入力する にゅうりょくする vs4 input, type in %vt @tech
+削除する さくじょする vs4 delete %vt @tech
+保存する ほぞんする vs4 save, keep %vt @tech
+印刷する いんさつする vs3 print %vt @tech
+プログラム n3 program @tech
+ロボット n3 robot #台 @tech
+人工知能 じんこうちのう n4 artificial intelligence @tech
+デジタル an4 digital @tech
+通信 つうしん n4 communication(s) @tech
+接続する せつぞくする vs4 connect; connection @tech
+故障する こしょうする vs3 break down; a breakdown @tech
+修理する しゅうりする vs3 repair; repairs %vt
+発明する はつめいする vs4 invent; an invention %vt
+開発する かいはつする vs4 develop %vt @tech
+実験する じっけんする vs3 experiment; an experiment @school
+科学者 かがくしゃ n4 scientist #人 @school,people
+惑星 わくせい n4 planet @nature
+衛星 えいせい n4 satellite @tech
+画像 がぞう n4 image, picture @tech
+自撮り じどり n4 selfie @tech
+キーボード n4 keyboard @tech
+マウス n4 (computer) mouse @tech
+普及する ふきゅうする vs4 spread, become common
+使用する しようする vs4 use; use %vt
+進歩する しんぽする vs4 progress, advance; progress
+発達する はったつする vs4 develop, grow
+揃う そろう vg3 be all there, gather; match
+コショウ n3 pepper (also the mule's name) @food
+`);
+  W.push(`
+// ---- society and community, everyday law (N3–N2)
+地域 ちいき n4 region, area; the local community @place
+住民 じゅうみん n4 resident #人 @people,town
+市民 しみん n4 citizen (of a city) #人 @people
+国民 こくみん n4 the people (of a country), citizen #人 @people
+人口 じんこう n3 population @people
+政府 せいふ n4 government
+政治 せいじ n4 politics
+法律 ほうりつ n4 law
+裁判 さいばん n4 trial
+裁判所 さいばんしょ n4 court (of law) @place
+警官 けいかん n4 police officer #人 @people
+犯罪 はんざい n4 crime -
+犯人 はんにん n4 criminal, culprit #人 @people
+泥棒 どろぼう n3 thief #人 @people -
+詐欺 さぎ n4 fraud, scam -
+違反する いはんする vs4 break (a rule), violate; a violation -
+罰金 ばっきん n4 fine (money) @money
+権利 けんり n4 right(s)
+義務 ぎむ n4 duty, obligation
+平等 びょうどう an4 equal; equality +
+差別する さべつする vs4 discriminate; discrimination %vt -
+証明書 しょうめいしょ n4 certificate #枚
+身分証明書 みぶんしょうめいしょ n4 ID card #枚
+申請する しんせいする vs4 apply (for a visa, a permit) %vt
+届け出る とどけでる vi4 report, notify (officially) %vt
+手続き てつづき n4 procedure, formalities
+登録する とうろくする vs4 register %vt
+投票する とうひょうする vs4 vote
+選挙 せんきょ n4 election
+寄付する きふする vs4 donate; a donation %vt @money
+募金 ぼきん n4 fundraising, collecting money @money
+ボランティア n3 volunteer; volunteering @people
+福祉 ふくし n4 welfare
+貧困 ひんこん n4 poverty -
+格差 かくさ n4 gap, inequality -
+少子化 しょうしか n4 falling birthrate
+高齢化 こうれいか n4 aging (of society)
+高齢者 こうれいしゃ n4 elderly person #人 @people
+世代 せだい n4 generation
+宗教 しゅうきょう n4 religion
+公共 こうきょう n4 public
+施設 しせつ n4 facility @place
+制度 せいど n4 system (of rules)
+政策 せいさく n4 policy
+改革する かいかくする vs4 reform; a reform %vt
+軍隊 ぐんたい n4 army, troops
+兵士 へいし n4 soldier #人 @people
+道徳 どうとく n4 morals, ethics
+マナー n3 manners
+秩序 ちつじょ n4 order (in society)
+治安 ちあん n4 public safety (how safe a place is)
+被害 ひがい n4 damage, harm -
+被害者 ひがいしゃ n4 victim #人 @people
+加害者 かがいしゃ n4 perpetrator #人 @people
+証人 しょうにん n4 witness #人 @people
+弁償する べんしょうする vs4 pay for (damage) %vt @money
+賠償 ばいしょう n4 compensation @money
+苦情 くじょう n4 complaint -
+トラブル n3 trouble -
+解決する かいけつする vs3 solve, settle %vt
+支援する しえんする vs4 support; support %vt
+助け合う たすけあう vg4 help each other
+地元 じもと n4 local area, hometown @place
+町内会 ちょうないかい n4 neighborhood association @town
+自治体 じちたい n4 local government @town
+役所 やくしょ n4 government office, town hall @place,town
+市役所 しやくしょ n3 city hall @place,town
+区役所 くやくしょ n4 ward office @place,town
+// ---- education and science (N3–N2)
+教育 きょういく n3 education @school
+学歴 がくれき n4 educational background @school
+学位 がくい n4 (university) degree @school
+大学院 だいがくいん n4 graduate school @school
+修士 しゅうし n4 master's (degree) @school
+博士 はかせ n4 doctor (PhD); professor, scientist (in stories) #人 @school,people
+学部 がくぶ n4 faculty (of a university) @school
+講義 こうぎ n4 lecture @school
+単位 たんい n4 (university) credit; unit @school
+不合格 ふごうかく n4 failing (an exam) - @school
+受験する じゅけんする vs4 take an (entrance) exam @school
+進学する しんがくする vs4 go on to higher education @school
+奨学金 しょうがくきん n4 scholarship @school,money
+学費 がくひ n4 school fees, tuition @school,money
+参考書 さんこうしょ n4 study guide #冊 @school
+課題 かだい n4 assignment, task @school
+論文 ろんぶん n4 thesis, paper @school
+理論 りろん n4 theory
+実践 じっせん n4 practice (not just theory)
+物理 ぶつり n4 physics @school
+化学 かがく n4 chemistry @school
+生物学 せいぶつがく n4 biology @school
+地理 ちり n4 geography @school
+哲学 てつがく n4 philosophy @school
+心理学 しんりがく n4 psychology @school
+文学 ぶんがく n3 literature @school,story
+経済学 けいざいがく n4 economics @school
+語彙 ごい n4 vocabulary @language
+知識 ちしき n3 knowledge
+知恵 ちえ n4 wisdom
+学問 がくもん n4 learning, scholarship
+結論 けつろん n4 conclusion
+仮説 かせつ n4 hypothesis
+証明する しょうめいする vs4 prove; proof %vt
+分析する ぶんせきする vs4 analyze; analysis %vt
+観察する かんさつする vs4 observe; observation %vt
+計算する けいさんする vs3 calculate %vt
+公式 こうしき n4 formula; official
+原理 げんり n4 principle
+教師 きょうし n4 teacher #人 @school,people
+講師 こうし n4 lecturer, instructor #人 @school,people
+校長 こうちょう n4 principal (of a school) #人 @school,people
+幼稚園 ようちえん n3 kindergarten @school,place
+保育園 ほいくえん n4 nursery school @school,place
+専門学校 せんもんがっこう n4 vocational school @school,place
+塾 じゅく n4 cram school @school,place
+講座 こうざ n4 course, class (for adults) @school
+学者 がくしゃ n4 scholar, researcher #人 @school,people
+言語 げんご n4 language @language
+カウンター n3 counter (in a shop, an office) @shop
+ばっちり adv4 perfectly, just right
+`);
+  W.push(`
+// ---- opinions and abstract ideas, and the words of arguing and linking (N3–N2)
+それにもかかわらず conj4 nevertheless, despite that %conn
+にもかかわらず phrase4 in spite of, although %conn
+したがって conj4 therefore, so %conn
+ところが conj3 however, but (to your surprise) %conn
+ただし conj4 however, but (a condition) %conn
+なお conj4 also, in addition; still more %conn
+すなわち conj4 that is, namely %conn
+要するに ようするに adv4 in short, basically %conn
+一方 いっぽう conj4 on the other hand; meanwhile %conn
+それとも conj3 or (in a question) %conn
+あるいは conj4 or, perhaps %conn
+もしくは conj4 or (formal) %conn
+なぜなら conj3 because (…からだ) %conn
+だって conj3 but, because (casual) %conn
+それなのに conj4 and yet, even so %conn
+しかも conj4 moreover, what's more %conn
+そのうえ conj4 besides, on top of that %conn
+おまけに adv4 to make matters worse, on top of that %conn
+実際 じっさい adv4 actually, in fact
+むしろ adv4 rather, if anything
+かえって adv4 on the contrary, instead
+最初に さいしょに adv3 first, at first
+一般的に いっぱんてきに adv4 generally, in general
+基本的に きほんてきに adv4 basically
+主張する しゅちょうする vs4 claim, insist; a claim
+議論する ぎろんする vs4 argue, discuss; a discussion
+説得する せっとくする vs4 persuade %vt
+納得する なっとくする vs4 be convinced, accept
+理解する りかいする vs3 understand; understanding %vt
+評価する ひょうかする vs4 evaluate, rate; an evaluation %vt
+批判する ひはんする vs4 criticize; criticism %vt
+比較する ひかくする vs4 compare; a comparison %vt
+価値 かち n4 value, worth
+意義 いぎ n4 significance, meaning
+不要 ふよう an4 unnecessary
+可能 かのう an4 possible
+不可能 ふかのう an4 impossible
+当然 とうぜん an4 natural, of course
+正確 せいかく an4 accurate, exact
+明らか あきらか an4 clear, obvious
+具体的 ぐたいてき an4 concrete, specific
+抽象的 ちゅうしょうてき an4 abstract
+客観的 きゃっかんてき an4 objective
+主観的 しゅかんてき an4 subjective
+積極的 せっきょくてき an4 positive, active, willing +
+消極的 しょうきょくてき an4 passive, negative -
+前向き まえむき an4 positive, forward-looking +
+否定的 ひていてき an4 negative -
+肯定的 こうていてき an4 positive, affirmative +
+現実的 げんじつてき an4 realistic
+理想 りそう n4 ideal
+現実 げんじつ n4 reality
+事情 じじょう n4 circumstances, reasons
+状況 じょうきょう n4 situation
+状態 じょうたい n4 state, condition
+条件 じょうけん n4 condition, terms
+傾向 けいこう n4 tendency, trend
+影響する えいきょうする vs4 influence, affect; influence
+効果 こうか n4 effect
+変化する へんかする vs4 change; a change
+共通 きょうつう n4 common, shared (共通の)
+特徴 とくちょう n4 characteristic, feature
+長所 ちょうしょ n4 strong point, merit +
+短所 たんしょ n4 weak point, fault -
+メリット n4 advantage, merit +
+デメリット n4 disadvantage -
+問題点 もんだいてん n4 the problem, a weak point
+解決策 かいけつさく n4 solution
+手段 しゅだん n4 means, way
+立場 たちば n4 standpoint, position
+観点 かんてん n4 point of view
+視点 してん n4 viewpoint, perspective
+価値観 かちかん n4 values, sense of values
+常識 じょうしき n4 common sense
+偏見 へんけん n4 prejudice -
+本音 ほんね n4 what you really think
+建前 たてまえ n4 what you say in public
+// ---- feelings (N3–N2)
+感情 かんじょう n4 emotion, feelings @feeling
+喜び よろこび n3 joy + @feeling
+怒り いかり n4 anger - @feeling
+反省する はんせいする vs4 reflect on (your mistakes) @feeling
+憧れる あこがれる vi4 long for, admire @feeling
+悔しい くやしい ai3 frustrating, galling - @feeling
+切ない せつない ai4 heartrending, wistful @feeling
+悲しむ かなしむ vg3 grieve, be sad - @feeling
+落ち込む おちこむ vg4 feel down - @feeling
+落ち着く おちつく vg3 calm down, settle + @feeling
+焦る あせる vg4 be in a rush, panic - @feeling
+慌てる あわてる vi4 panic, be flustered - @feeling
+意外 いがい an4 unexpected, surprising @feeling
+夢中 むちゅう an4 absorbed (in), crazy (about) @feeling
+必死 ひっし an4 desperate, frantic @feeling
+素直 すなお an4 honest, frank; obedient + @feeling
+思いやり おもいやり n4 consideration, kindness + @feeling
+幸福 こうふく n4 happiness + @feeling
+不幸 ふこう an4 unhappy, unfortunate - @feeling
+リラックス n3 relaxation; relaxed @feeling
+癒す いやす vg4 heal, soothe %vt @feeling
+癒やし いやし n4 comfort, healing @feeling
+わくわく adv3 excited, thrilled @feeling
+どきどき adv3 (heart) pounding, nervous @feeling
+いらいら adv3 irritated, on edge @feeling
+がっかり adv3 disappointed @feeling
+びっくり adv3 surprised @feeling
+うっとり adv4 entranced, enchanted @feeling
+内容 ないよう n3 content(s), what's in it
+`);
+  W.push(`
+// ---- travel, culture and the arts (N3–N2)
+観光地 かんこうち n4 tourist spot @travel %place
+名所 めいしょ n4 famous place, sight @travel %place
+民宿 みんしゅく n4 guesthouse, B&B #軒 @travel %place
+宿泊する しゅくはくする vs4 stay (at a hotel) @travel
+キャンセルする きゃんせるする vs3 cancel %vt
+滞在する たいざいする vs4 stay (somewhere) @travel
+乗り換える のりかえる vi3 change (trains, buses) @transport
+乗り換え のりかえ n3 transfer, change (of trains) @transport
+往復 おうふく n4 round trip @travel
+片道 かたみち n4 one way @travel
+航空券 こうくうけん n4 plane ticket #枚 @travel
+手荷物 てにもつ n4 hand luggage @travel
+スーツケース n3 suitcase @travel
+両替する りょうがえする vs4 change (money) %vt @money,travel
+海外 かいがい n3 abroad, overseas @place,travel
+国内 こくない n4 domestic, within the country @place
+地方 ちほう n4 region; the provinces @place
+風景 ふうけい n4 scenery, landscape @nature
+名物 めいぶつ n4 local specialty @food,travel
+特産 とくさん n4 local product @food,travel
+記念 きねん n4 commemoration, memory
+記念品 きねんひん n4 keepsake, souvenir
+ガイド n3 guide @travel,people
+ツアー n3 tour @travel
+演劇 えんげき n4 drama, theater @art
+芝居 しばい n4 play (on stage); acting @art
+展示する てんじする vs4 display, exhibit %vt @art
+展覧会 てんらんかい n4 exhibition @art
+作品 さくひん n3 work (of art) @art
+作家 さっか n3 writer, author #人 @art,people
+芸術 げいじゅつ n4 art @art
+芸術家 げいじゅつか n4 artist #人 @art,people
+画家 がか n4 painter #人 @art,people
+俳優 はいゆう n4 actor #人 @art,people
+監督 かんとく n4 director; coach #人 @art,people
+脚本 きゃくほん n4 script, screenplay @art
+詩人 しじん n4 poet #人 @art,people
+伝説 でんせつ n4 legend @story
+神話 しんわ n4 myth @story
+行事 ぎょうじ n4 (yearly) event @time
+儀式 ぎしき n4 ceremony
+伝統的 でんとうてき an4 traditional
+文化財 ぶんかざい n4 cultural asset
+遺跡 いせき n4 ruins, historic remains @travel %place
+城 しろ n3 castle @travel %place
+茶道 さどう n4 tea ceremony @art
+書道 しょどう n4 calligraphy @art
+和食 わしょく n3 Japanese food @food
+// ---- money and shopping (N3–N2)
+価格 かかく n4 price @money,shop
+割引する わりびきする vs4 discount; a discount %vt @shop,money
+安売り やすうり n4 sale, bargain sale @shop
+税金 ぜいきん n4 tax @money
+消費税 しょうひぜい n4 consumption tax @money
+クレジットカード n3 credit card #枚 @money
+支払う しはらう vg3 pay %vt @money
+支払い しはらい n3 payment @money
+払い戻す はらいもどす vg4 refund %vt @money
+返金 へんきん n4 refund @money
+レシート n3 receipt #枚 @shop
+領収書 りょうしゅうしょ n4 receipt (formal) #枚 @shop,money
+小銭 こぜに n4 small change, coins @money
+預金 よきん n4 savings, deposit @money
+銀行口座 ぎんこうこうざ n4 bank account @money
+口座 こうざ n4 (bank) account @money
+振り込む ふりこむ vg4 transfer (money) %vt @money
+振込 ふりこみ n4 (bank) transfer @money
+ローン n4 loan @money
+借金 しゃっきん n4 debt - @money
+利子 りし n4 interest (on money) @money
+給料日 きゅうりょうび n4 payday @money,time
+家計 かけい n4 household budget @money,home
+物価 ぶっか n4 prices (of things) @money
+値上がり ねあがり n4 price rise @money
+値下がり ねさがり n4 price fall @money
+高価 こうか an4 expensive, costly @money
+安価 あんか an4 cheap, inexpensive @money
+お得 おとく an3 a good deal, worth it + @shop
+品物 しなもの n3 goods, article @shop
+商品 しょうひん n3 product, merchandise @shop
+品質 ひんしつ n4 quality @shop
+ブランド n3 brand @shop
+中古 ちゅうこ n4 secondhand, used @shop
+新品 しんぴん n4 brand-new item @shop
+通販 つうはん n4 mail order, online shopping @shop
+返品する へんぴんする vs4 return (goods) %vt @shop
+交換する こうかんする vs3 exchange, swap %vt
+配送 はいそう n4 delivery @shop
+送料 そうりょう n4 shipping cost @shop,money
+在庫 ざいこ n4 stock (in a shop) @shop
+売り切れ うりきれ n3 sold out @shop
+定価 ていか n4 list price @shop,money
+レジ n3 cash register, checkout @shop
+// ---- housing and city life (N3–N2)
+住宅 じゅうたく n4 housing, residence @home
+住まい すまい n4 home, where you live @home
+家賃 やちん n3 rent @home,money
+敷金 しききん n4 deposit (for renting) @home,money
+不動産 ふどうさん n4 real estate @home
+引っ越し ひっこし n3 moving (house) @home
+大家 おおや n4 landlord #人 @home,people
+管理人 かんりにん n4 caretaker, building manager #人 @home,people
+一戸建て いっこだて n4 detached house @home
+間取り まどり n4 floor plan, layout @home
+リビング n3 living room @home
+寝室 しんしつ n4 bedroom @home
+和室 わしつ n4 Japanese-style room @home
+洋室 ようしつ n4 Western-style room @home
+家具 かぐ n3 furniture @home
+家電 かでん n4 home appliances @home,tech
+暖房 だんぼう n4 heating @home
+冷房 れいぼう n4 air conditioning (cooling) @home
+都市 とし n4 city @town
+都心 としん n4 city center @town %place
+郊外 こうがい n4 suburbs @town %place
+住宅街 じゅうたくがい n4 residential area @town %place
+商店街 しょうてんがい n3 shopping street @town,shop %place
+繁華街 はんかがい n4 downtown, busy area @town %place
+駅前 えきまえ n3 in front of the station @town %place
+歩道 ほどう n4 sidewalk @town
+横断歩道 おうだんほどう n3 crosswalk @town
+渋滞 じゅうたい n4 traffic jam @transport
+混雑する こんざつする vs4 be crowded; congestion @town
+騒音 そうおん n4 noise - @town
+ごみ出し ごみだし n4 putting out the rubbish @home
+近所付き合い きんじょづきあい n4 getting along with the neighbors @people
+売り切れる うりきれる vi3 sell out, be sold out @shop
+零時 れいじ n3 midnight, twelve o'clock @time %tni
+登場する とうじょうする vs4 appear (in a story, on stage) @story
+登場人物 とうじょうじんぶつ n4 character (in a story) #人 @story,people
+紙芝居 かみしばい n4 picture-card show (kamishibai) @art,story
+ベレー帽 べれーぼう n4 beret @clothes
+上る のぼる vg3 go up, climb (stairs, a slope)
+下りる おりる vi3 go down, come down (a mountain, stairs)
+`);
+  W.push(`
+// ---- the game's own words that had no headword yet (verbs and adjectives, so their forms are known: 回して, 崩れた, きつかった)
+回す まわす vg2 turn (something), spin %vt
+彫る ほる vg4 carve %vt @art
+積む つむ vg3 load, pile up %vt
+測る はかる vg3 measure %vt
+塗る ぬる vg3 paint, spread (on) %vt
+こねる vi4 knead %vt @food
+剥く むく vg4 peel %vt @food =w.ml_peel
+挽く ひく vg4 grind (coffee, flour) %vt @food
+きしむ vg4 creak
+建て直す たてなおす vg4 rebuild %vt
+掃く はく vg3 sweep %vt @home
+覆う おおう vg4 cover %vt
+訪ねる たずねる vi3 visit %vt
+立ち止まる たちどまる vg3 stop (walking), stand still
+繕う つくろう vg4 mend %vt =w.lp_to_mend
+漕ぐ こぐ vg4 row (a boat), pedal %vt =w.lp_to_row
+膨らむ ふくらむ vg4 swell, puff up =w.lf_to_puff_up
+掘る ほる vg3 dig %vt
+研ぐ とぐ vg4 sharpen; wash (rice) %vt
+当てる あてる vi3 guess; hit; put (on) %vt
+崩れる くずれる vi4 collapse, crumble
+匂う におう vg3 smell (of), give off a smell =w.gd_smell
+拭く ふく vg3 wipe %vt @home
+放す はなす vg4 let go (of), set free %vt =w.gd_letgo
+下げる さげる vi2 lower, hang %vt
+よける vi4 dodge, step aside =w.gd_stepaside
+降ろす おろす vg3 unload, take down, drop off %vt
+揚げる あげる vi3 deep-fry; hoist (a flag) %vt @food
+導く みちびく vg4 guide, lead %vt
+すする vg4 slurp, sip %vt @food
+スケートする すけーとする vs3 skate @sport
+蒸発する じょうはつする vs4 evaporate @nature
+干上がる ひあがる vg4 dry up @nature
+湧き出る わきでる vi4 spring up, gush out (water) @nature
+滑る すべる vg3 slip, slide
+滴る したたる vg4 drip
+溢れる あふれる vi4 overflow
+透明 とうめい an4 transparent, see-through
+頑固 がんこ an4 stubborn -
+青白い あおじろい ai4 pale
+硬い かたい ai3 hard, stiff
+厚い あつい ai3 thick
+滑りやすい すべりやすい ai4 slippery =w.pkp_slippery
+険しい けわしい ai4 steep; harsh =w.pkp_steep
+ほこりっぽい ai4 dusty
+ありがたい ai3 grateful; welcome +
+緩い ゆるい ai4 loose; gentle (a slope) =w.pkf_loose
+きつい ai3 tight; hard, tough
+// ---- verbs (N3–N2)
+向く むく vg3 face, turn (toward); suit
+向ける むける vi3 turn (something) toward, aim %vt
+扱う あつかう vg3 handle, treat, deal with %vt
+争う あらそう vg3 compete, fight, argue
+与える あたえる vi3 give, award %vt
+表す あらわす vg3 show, express %vt
+現れる あらわれる vi3 appear, show up
+移す うつす vg3 move (something), transfer %vt
+訴える うったえる vi3 complain, appeal; sue %vt
+補う おぎなう vg4 make up for, supplement %vt
+抑える おさえる vi3 hold down, control, keep in %vt
+劣る おとる vg4 be inferior (to)
+傾く かたむく vg4 lean, tilt
+囲む かこむ vg3 surround %vt
+重ねる かさねる vi3 pile up, stack; repeat %vt
+稼ぐ かせぐ vg3 earn (money) %vt @money
+叶う かなう vg4 come true (a wish)
+叶える かなえる vi4 make (a wish) come true %vt
+構う かまう vg3 mind, care (構わない: it doesn't matter)
+効く きく vg3 work, be effective (a medicine) @health
+刻む きざむ vg4 chop finely; carve %vt @food
+築く きずく vg4 build (up) %vt
+崩す くずす vg4 break down, knock down; break (a bill) %vt
+砕く くだく vg4 crush, smash %vt
+加わる くわわる vg4 join, be added
+加える くわえる vi3 add %vt
+削る けずる vg4 shave, sharpen (a pencil); cut down %vt
+冷める さめる vi3 get cold, cool down @food
+冷ます さます vg4 cool (something) %vt @food
+支える ささえる vi3 support, hold up %vt
+沈む しずむ vg3 sink; set (the sun)
+沈める しずめる vi4 sink (something) %vt
+従う したがう vg3 obey, follow
+縛る しばる vg4 tie up, bind %vt
+生じる しょうじる vi4 arise, occur
+占める しめる vi4 occupy, take up (a share) %vt
+湿る しめる vg4 get damp
+絞る しぼる vg4 wring, squeeze %vt
+示す しめす vg3 show, point out %vt
+迫る せまる vg4 approach, draw near; press
+優れる すぐれる vi4 excel, be excellent +
+済ませる すませる vi3 finish, get (it) done %vt
+備える そなえる vi3 prepare (for); be equipped with
+耕す たがやす vg4 plow, till %vt @nature
+頼る たよる vg3 rely on, depend on
+保つ たもつ vg4 keep, maintain %vt
+縮む ちぢむ vg4 shrink
+縮める ちぢめる vi4 shorten, shrink %vt
+散らかす ちらかす vg3 mess up, scatter %vt @home
+散る ちる vg3 fall, scatter (leaves, petals) @nature
+尽きる つきる vi4 run out, be used up
+尽くす つくす vg4 do all you can; serve %vt
+潰す つぶす vg4 crush; kill (time) %vt
+潰れる つぶれる vi4 be crushed; go bankrupt
+詰める つめる vi3 pack, stuff, fill %vt
+詰まる つまる vg4 be blocked, be packed
+照らす てらす vg4 light up, shine on %vt
+解く とく vg3 solve; untie %vt
+整う ととのう vg4 be ready, be in order
+整える ととのえる vi4 arrange, put in order %vt
+唱える となえる vi4 chant, recite %vt
+眺める ながめる vi3 gaze at, look out over %vt
+流す ながす vg3 let flow, wash away; play (music) %vt
+流れる ながれる vi3 flow, run; be played (music)
+嘆く なげく vg4 grieve, lament -
+慰める なぐさめる vi4 comfort, console %vt
+怠ける なまける vi4 be lazy, slack off -
+憎む にくむ vg4 hate %vt -
+逃す のがす vg4 miss (a chance), let escape %vt
+濁る にごる vg4 get muddy, become cloudy
+抜く ぬく vg3 pull out; skip (a meal) %vt
+抜ける ぬける vi3 come out, fall out; get through
+除く のぞく vg4 remove, exclude %vt
+剥がす はがす vg4 peel off, tear off %vt
+果たす はたす vg4 fulfil, carry out %vt
+省く はぶく vg4 leave out, cut out %vt
+含む ふくむ vg3 contain, include %vt
+含める ふくめる vi4 include %vt
+防ぐ ふせぐ vg3 prevent, defend against %vt
+外れる はずれる vi3 come off; miss, be wrong
+離す はなす vg3 separate, take away %vt
+震える ふるえる vi3 shake, tremble
+触れる ふれる vi3 touch; mention
+誇る ほこる vg4 be proud of, boast
+埋める うめる vi3 bury, fill in %vt
+見直す みなおす vg4 look over again, review %vt
+実る みのる vg4 bear fruit, ripen @nature
+結ぶ むすぶ vg3 tie, connect %vt
+恵まれる めぐまれる vi4 be blessed with
+設ける もうける vi4 set up, establish %vt
+求める もとめる vi3 ask for, seek, demand %vt
+基づく もとづく vg4 be based on
+破る やぶる vg3 tear; break (a promise) %vt
+破れる やぶれる vi3 tear, be torn
+揺れる ゆれる vi3 shake, sway
+許す ゆるす vg3 forgive, allow %vt
+汚す よごす vg3 make dirty %vt
+詫びる わびる vi4 apologize
+割る わる vg3 break (a plate), split; divide %vt
+預かる あずかる vg3 look after, keep (for someone) %vt
+浮かぶ うかぶ vg3 float; come to mind
+浮かべる うかべる vi4 float (something); call to mind %vt
+奪う うばう vg3 take away, rob %vt -
+追いつく おいつく vg3 catch up
+送り出す おくりだす vg4 send off, see off %vt
+収める おさめる vi4 put away; achieve, obtain %vt
+治める おさめる vi4 govern, rule %vt
+及ぶ およぶ vg4 reach, extend (to)
+及ぼす およぼす vg4 have (an effect) on %vt
+傷つける きずつける vi3 hurt, injure %vt -
+傷つく きずつく vg3 get hurt -
+競う きそう vg4 compete
+区切る くぎる vg4 divide, mark off %vt
+悔やむ くやむ vg4 regret -
+好む このむ vg4 like, prefer %vt
+転がる ころがる vg3 roll, tumble
+探る さぐる vg4 search, feel around for; spy on %vt
+避ける さける vi3 avoid %vt
+刺す さす vg3 stab, sting %vt
+定める さだめる vi4 decide, set (a rule) %vt
+仕上げる しあげる vi4 finish (off), complete %vt
+生かす いかす vg4 make use of, make the most of %vt
+締める しめる vi3 tighten, tie (a belt, a tie) %vt
+責める せめる vi4 blame %vt -
+揃える そろえる vi3 put in order, get together %vt
+備わる そなわる vg4 be equipped with, be provided
+耐える たえる vi4 bear, endure
+高める たかめる vi4 raise, improve %vt
+蓄える たくわえる vi4 store, save up %vt
+試す ためす vg3 try, test %vt
+突く つく vg4 poke, push; strike %vt
+継ぐ つぐ vg4 succeed to, take over %vt
+包む つつむ vg3 wrap %vt
+努める つとめる vi4 try hard, endeavor
+積もる つもる vg3 pile up (snow)
+貫く つらぬく vg4 go through; stick to (your beliefs) %vt
+照れる てれる vi4 be shy, be embarrassed
+問い合わせる といあわせる vi4 inquire %vt
+遠ざかる とおざかる vg4 move away, go far off
+溶け込む とけこむ vg4 blend in, fit in
+解ける とける vi4 come untied; be solved
+振り返る ふりかえる vg4 look back
+越える こえる vi3 go over, cross
+超える こえる vi4 exceed, go beyond
+聖歌 せいか n4 hymn @music
+聖歌隊 せいかたい n4 choir @music
+得 とく n4 profit, gain; a good deal +
+限り かぎり n4 as long as; the limit
+もったいない ai3 wasteful, what a waste
+意地悪 いじわる an3 mean, nasty -
+裏 うら n3 the back, the reverse side
+表 おもて n3 the front, the surface; outside
+っけ part3 (trying to remember: …again? wasn't it?)
+カッコー n4 cuckoo #羽 @animal
+湧く わく vg4 spring up, gush out (water) @nature
+剥がれる はがれる vi4 come off, peel off
+`);
+  W.push(`
+// ---- describing words: い- and な-adjectives (N3–N2)
+鋭い するどい ai4 sharp, keen
+著しい いちじるしい ai4 remarkable, marked
+荒い あらい ai4 rough, wild (the sea, breathing)
+勇ましい いさましい ai4 brave, gallant +
+偉い えらい ai3 great, admirable; important
+幼い おさない ai3 very young, little; childish
+賢い かしこい ai3 wise, clever +
+濃い こい ai3 dark (a color), thick, strong (coffee)
+騒がしい さわがしい ai4 noisy, loud
+鈍い にぶい ai4 dull, slow
+等しい ひとしい ai4 equal
+貧しい まずしい ai3 poor -
+乏しい とぼしい ai4 scarce, lacking -
+尊い とうとい ai4 precious, noble
+眩しい まぶしい ai3 dazzling, too bright
+頼もしい たのもしい ai4 reliable, promising +
+好ましい このましい ai4 desirable, pleasant
+望ましい のぞましい ai4 desirable, advisable
+ふさわしい ai4 suitable, fitting
+素早い すばやい ai4 quick, nimble
+慌ただしい あわただしい ai4 hectic, rushed
+情けない なさけない ai4 pitiful, shameful -
+申し訳ない もうしわけない ai3 sorry, inexcusable
+頼りない たよりない ai4 unreliable -
+物足りない ものたりない ai4 not quite enough, unsatisfying
+面倒くさい めんどうくさい ai3 a hassle, bothersome
+可愛らしい かわいらしい ai4 lovely, sweet +
+子どもっぽい こどもっぽい ai4 childish
+大人っぽい おとなっぽい ai4 grown-up, mature-looking
+若々しい わかわかしい ai4 youthful
+たくましい ai4 strong, sturdy, tough
+心強い こころづよい ai4 reassuring +
+心細い こころぼそい ai4 helpless, uneasy -
+力強い ちからづよい ai4 powerful, strong
+粘り強い ねばりづよい ai4 persistent, tenacious
+我慢強い がまんづよい ai4 patient
+曖昧 あいまい an4 vague, ambiguous
+鮮やか あざやか an4 vivid, bright
+穏やか おだやか an4 calm, gentle +
+気軽 きがる an4 casual, easy (気軽に)
+気楽 きらく an4 easygoing, carefree
+器用 きよう an4 skillful, good with your hands +
+不器用 ぶきよう an4 clumsy
+強力 きょうりょく an4 powerful, strong
+謙虚 けんきょ an4 humble, modest +
+厳重 げんじゅう an4 strict, tight (security)
+豪華 ごうか an4 luxurious, gorgeous
+盛ん さかん an4 thriving, popular
+爽やか さわやか an4 refreshing, fresh +
+柔軟 じゅうなん an4 flexible
+速やか すみやか an4 prompt, speedy
+素朴 そぼく an4 simple, unpretentious
+率直 そっちょく an4 frank, straightforward
+単純 たんじゅん an3 simple
+適切 てきせつ an4 appropriate, proper
+手軽 てがる an4 easy, handy
+独特 どくとく an4 unique, characteristic
+平凡 へいぼん an4 ordinary, common
+豊富 ほうふ an4 abundant, rich
+明確 めいかく an4 clear, definite
+有効 ゆうこう an4 valid, effective
+有能 ゆうのう an4 capable, competent
+愉快 ゆかい an4 pleasant, cheerful +
+余計 よけい an4 unnecessary, extra; all the more
+冷静 れいせい an4 calm, cool-headed
+安易 あんい an4 easy (too easy), careless
+異常 いじょう an4 abnormal, unusual
+大げさ おおげさ an4 exaggerated, over the top
+真剣 しんけん an3 serious, earnest
+地味 じみ an3 plain, sober (a color, a style)
+派手 はで an3 flashy, showy
+上品 じょうひん an4 elegant, refined +
+下品 げひん an4 vulgar -
+見事 みごと an4 splendid, wonderful +
+微妙 びみょう an4 subtle; so-so, iffy
+妙 みょう an4 strange, odd
+迷惑 めいわく an3 trouble, a nuisance (迷惑をかける) -
+面倒 めんどう an3 trouble, bother; a hassle
+贅沢 ぜいたく an4 luxury, extravagant
+質素 しっそ an4 simple, frugal
+頑丈 がんじょう an4 sturdy, solid
+快適 かいてき an4 comfortable +
+不自然 ふしぜん an4 unnatural
+主要 しゅよう an4 main, principal
+重大 じゅうだい an4 serious, important
+深刻 しんこく an4 serious, grave -
+じゅうぶん an3 enough, plenty (じゅうぶんに)
+正式 せいしき an4 formal, official
+公平 こうへい an4 fair, impartial +
+健全 けんぜん an4 healthy, sound
+優秀 ゆうしゅう an4 excellent, outstanding +
+貴重 きちょう an4 precious, valuable
+高級 こうきゅう an4 high-class, luxury
+確実 かくじつ an4 certain, sure
+着実 ちゃくじつ an4 steady
+順調 じゅんちょう an4 smooth, going well +
+活発 かっぱつ an4 lively, active
+誠実 せいじつ an4 sincere, honest +
+慎重 しんちょう an4 careful, cautious
+わずか an4 only, slight, a few
+// ---- adverbs and the words that colour a sentence (N3–N2)
+相変わらず あいかわらず adv4 as usual, as always
+改めて あらためて adv4 again, anew
+案外 あんがい adv4 unexpectedly, surprisingly
+一応 いちおう adv3 just in case; more or less
+一気に いっきに adv4 all at once, in one go
+一斉に いっせいに adv4 all together, all at once
+今にも いまにも adv4 at any moment
+必ずしも かならずしも adv4 not necessarily (…ない)
+かつて adv4 once, formerly
+早速 さっそく adv3 at once, right away
+ざっと adv4 roughly, briefly
+次第に しだいに adv4 gradually
+実に じつに adv4 truly, really
+しばしば adv4 often, frequently
+少なくとも すくなくとも adv3 at least
+せっかく adv3 with effort; kindly (せっかくの…)
+相当 そうとう adv4 considerably, quite
+互いに たがいに adv4 mutually, each other
+お互い おたがい n3 each other
+直ちに ただちに adv4 immediately
+たちまち adv4 in an instant
+絶えず たえず adv4 constantly
+たとえ adv4 even if (たとえ…ても)
+単に たんに adv4 merely, simply
+ちっとも adv3 not at all (…ない)
+ついでに adv3 while you're at it
+次々 つぎつぎ adv4 one after another
+常に つねに adv4 always
+到底 とうてい adv4 (not) possibly (…ない)
+ついに adv3 finally, at last
+とっくに adv4 long ago, already
+何しろ なにしろ adv4 anyway, at any rate
+何とか なんとか adv3 somehow; something or other
+再び ふたたび adv4 again, once more
+ふと adv3 suddenly, by chance
+別に べつに adv3 (not) particularly (…ない)
+まさに adv4 exactly, just, truly
+真っ先に まっさきに adv4 first of all
+間もなく まもなく adv3 soon, shortly
+自ら みずから adv4 oneself, personally
+無論 むろん adv4 of course
+最も もっとも adv3 most
+専ら もっぱら adv4 mainly, exclusively
+元々 もともと adv3 originally, from the start
+やがて adv4 soon, before long
+ようやく adv4 at last, finally
+わざと adv3 on purpose
+わざわざ adv3 go to the trouble of
+いきなり adv3 suddenly, without warning
+いずれ adv4 sooner or later; either
+一層 いっそう adv4 even more
+いったい adv4 (what) on earth
+今さら いまさら adv4 now (after all this time), too late
+一切 いっさい adv4 (not) at all; everything
+うっかり adv3 carelessly, by mistake
+おそらく adv3 probably
+思い切って おもいきって adv4 boldly, taking the plunge
+主として しゅとして adv4 mainly
+概して がいして adv4 generally
+くれぐれも adv4 (please) be sure to
+極めて きわめて adv4 extremely
+こっそり adv3 secretly, quietly
+さっさと adv4 quickly, without delay
+ずいぶん adv3 quite, very
+せめて adv4 at least
+たまたま adv4 by chance
+てっきり adv4 surely (but wrongly)
+どうせ adv3 anyway, after all
+どうにか adv4 somehow
+とにかく adv3 anyway, at any rate
+共に ともに adv4 together, with
+何より なにより adv3 above all, more than anything
+本来 ほんらい adv4 originally, by nature
+まさか adv3 no way!, surely not
+未だに いまだに adv4 still (even now)
+めったに adv3 rarely (…ない)
+もしかしたら adv3 maybe, perhaps
+もしかすると adv4 perhaps
+よほど adv4 very, greatly
+突然 とつぜん adv3 suddenly
+同時 どうじ n3 the same time (同時に)
+堂々 どうどう adv4 confidently, boldly (堂々と)
+例える たとえる vi4 compare (to), liken %vt
+でっかい ai4 huge (casual)
+幼なじみ おさななじみ n4 childhood friend #人 @people
+なじみ n4 familiarity, an old acquaintance (おなじみの: familiar)
+こそ part3 (emphasis: this very…, だからこそ: that's exactly why)
+全国 ぜんこく n3 the whole country, nationwide @place
+小さじ こさじ n4 teaspoon (in a recipe) #杯 @food
+大さじ おおさじ n4 tablespoon (in a recipe) #杯 @food
+シフト n4 (work) shift @work
+お見事 おみごと int4 well done!, bravo! +
+子育て こそだて n4 raising children @family
+中心 ちゅうしん n3 center, middle
+表紙 ひょうし n4 (book) cover @story
+ずれる vi4 slip out of place; be off (a time, a clock)
+おすすめ n3 recommendation; recommended
+彼氏 かれし n3 boyfriend #人 @people
+グループ n3 group #つ @people
+はがき n3 postcard #枚 @school
+ぶつかる vg3 bump into, crash into
+ぶつける vi3 hit, bump (something) against %vt
+つらい ai3 hard, painful (to bear) -
+たきぎ n4 firewood @nature
+おしまい n3 the end, over (おしまいだ: that's it)
+によると phrase3 according to
+だそう phrase3 they say, I hear (…だそうです)
 `);
   // @@ (more word chunks go above this line)
 })();

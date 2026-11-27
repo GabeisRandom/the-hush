@@ -140,7 +140,7 @@ const PAPER = (() => {
     if (fresh.length === 1 && eds.length === 1) return read(fresh[0]);
     const opts = eds.slice().reverse().map(e => {
       const r = S().read[e.id], hd = line(e.lead.head);
-      return { label: `📰 ${name} Nº ${e.n}: ${P(hd.t)} · ${READ.BAND(e.band)}${r ? '' : ' · NEW'}`, sub: `${hd.en}${r ? ` · read: ${r.right}/${r.of} (again: practice, no coins)` : ` · ${COIN} coins a right answer`}`, value: e };
+      return { label: `📰 ${name} No. ${e.n}: ${P(hd.t)} · ${READ.BAND(e.band)}${r ? '' : ' · NEW'}`, sub: `${hd.en}${r ? ` · read: ${r.right}/${r.of} (again: practice, no coins)` : ` · ${COIN} coins a right answer`}`, value: e };
     });
     const e = await choose(`${name}: ${n < c.editions.length ? 'the newest edition, or an older one' : 'every edition so far'}${n < c.editions.length ? ' (a new one every week)' : ''}`, opts);
     return e ? read(e) : null;
@@ -213,7 +213,7 @@ const PAPER = (() => {
     const r = QUIZ.UI.open('paper');
     const chip = first ? '<i class="qz-chip new">new edition</i>' : '<i class="qz-chip prac">read again · practice</i>';
     r.innerHTML = `<div class="qz-shade"></div><div class="qz-card"><div class="qz-top"><canvas class="qz-logo" width="208" height="128"></canvas>`
-      + `<div class="qz-ttl"><b>${H(line(c.mast).t)}</b><small>📰 Nº ${b.n} · ${H(line(b.lead.head).t)} <span class="en">${esc(line(b.lead.head).en)}</span></small></div>`
+      + `<div class="qz-ttl"><b>${H(line(c.mast).t)}</b><small>📰 No. ${b.n} · ${H(line(b.lead.head).t)} <span class="en">${esc(line(b.lead.head).en)}</span></small></div>`
       + `<span><i class="qz-chip">${READ.BAND(b.band)}</i>${chip}</span><button class="qz-x" title="Close (Esc)">✕</button></div>`
       + `<div class="pp-body"><div class="pp-page">${pageHTML(b)}</div><div class="pp-side"><div class="pp-tools"><button class="qz-btn" data-a="en">EN under the text</button><span class="qz-note">Tap a word for what it means.</span></div><div class="qz-after"></div>`
       + `<div class="qz-h">Your reading · ${items.length} questions${first ? ` · ${COIN} coins a right answer` : ''}</div>`
@@ -288,7 +288,7 @@ const PAPER = (() => {
       for (const e of c.editions) {
         if (e.n > n && !s.read[e.id]) continue;
         const r = s.read[e.id], hd = line(e.lead.head);
-        h += `<div class="row"><b>Nº ${e.n}</b> · ${H(hd.t)} <span style="opacity:.7;font-style:italic">${esc(hd.en)}</span> · ${READ.BAND(e.band)}${r ? ` · ${r.right}/${r.of}` : ' · <i>on the library’s rack, not read yet</i>'}</div>`;
+        h += `<div class="row"><b>No. ${e.n}</b> · ${H(hd.t)} <span style="opacity:.7;font-style:italic">${esc(hd.en)}</span> · ${READ.BAND(e.band)}${r ? ` · ${r.right}/${r.of}` : ' · <i>on the library’s rack, not read yet</i>'}</div>`;
       }
       return h + '<div class="row" style="opacity:.75">The rack is in the library, by the east window.</div></div>';
     },
@@ -317,7 +317,7 @@ const PAPER = (() => {
   }
   function check(langs = ['zh', 'ja']) {
     const bad = []; if (typeof CJK === 'undefined') return bad;
-    for (const l of [].concat(langs)) for (const { where, s } of strings(l)) { const p = CJK.validate(READ.fill(s), l); if (p && p.length) bad.push({ where, s, p }); }
+    for (const l of [].concat(langs)) for (const { where, s } of strings(l)) { const p = CJK.validate(READ.fill(s).replace(/\{\w+\.\w+\^?\}/g, '').replace(/ {2,}/g, ' ').trim(), l); if (p && p.length) bad.push({ where, s, p }); }     // (the made parts' placeholders are filled from the kit: tests validate those filled)
     return bad;
   }
   const wordsIn = (s, l) => (isCJ(l) ? CJK.plain(READ.fill(s), { lang: l, mode: 'chars' }).replace(/[\s\p{P}]/gu, '').length : String(READ.fill(s)).split(/\s+/).filter(Boolean).length);

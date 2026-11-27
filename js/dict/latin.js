@@ -755,6 +755,8 @@ const LATIN = (() => {
       if (hc && (hc.e.tags.includes('time') || hc.e.coll || hc.e.pos === 'adj' && np.det < 0)) return null;
       // not a subject: a time phrase («este fin de semana»), or a phrase with a preposition in its article («al principio»)
       if (np.det >= 0 && rd(W, np.det) && rd(W, np.det).e.pos === 'prep') return null;
+      // (DX-B2) nor a question word's phrase, which is as often the object: «¿Cuántos pisos tenía el pastel?»
+      if (np.det >= 0 && rd(W, np.det) && rd(W, np.det).e.q) return null;
       for (let k = np.s; k <= np.e; k++) { const x = rd(W, k); if ((x && x.e.tags && x.e.tags.includes('time')) || (W[k]._ph && W[k]._ph.tags.includes('time'))) return null; }
       const gn = nounGN(W, np);
       return coord(W, { at: [np.s, np.e], person: 3, number: gn.n, gender: hc && (hc.e.per || hc.f.gender) ? gn.g : gn.g, pron: false, np }, R);
@@ -789,6 +791,8 @@ const LATIN = (() => {
       if (S.formal) return p === 3 && n === S.number;
       if (R.gente3 && S.key === R.gente3) return p === 3 && n === 's';
       if (S.person === 2 && S.number === 's') return (p === 2 && n === 's') || (!!R.tu3 && p === 3 && n === 's');
+      // (DX-B2) a plural noun with a 1st-person-plural verb takes in the speaker: «los niños patinábamos», «los adultos vemos»
+      if (!S.pron && S.person === 3 && S.number === 'p' && p === 1 && n === 'p') return true;
       return p === S.person && n === S.number;
     }
     // ---- time words: entries with e.time, and the language's patterns over the word keys («la semana pasada»)

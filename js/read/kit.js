@@ -137,7 +137,7 @@ const KIT = (() => {
   // (a template's own text is checked through the episodes it builds: tests() validates every built string)
   function check(l = L()) {
     const bad = []; if (typeof CJK === 'undefined' || !isCJ(l)) return bad;
-    for (const { where, s } of strings(l)) { const p = CJK.validate(READ.fill(s), l); if (p && p.length) bad.push({ where, s, p }); }
+    for (const { where, s } of strings(l)) { const p = CJK.validate(READ.fill(s).replace(/\{\w+\.\w+\^?\}/g, '').replace(/ {2,}/g, ' ').trim(), l); if (p && p.length) bad.push({ where, s, p }); }     // (a slot's placeholder is filled later: built episodes are validated whole)
     return bad;
   }
   const wordsIn = (s, l) => (isCJ(l) ? CJK.plain(READ.fill(s), { lang: l, mode: 'chars' }).replace(/[\s\p{P}]/gu, '').length : String(READ.fill(s)).split(/\s+/).filter(Boolean).length);
