@@ -143,6 +143,7 @@ heißen||hieß|geheißen|h
 helfen|hilf|half|geholfen|h
 kennen||kannte|gekannt|h
 klingen||klang|geklungen|h
+kriechen||kroch|gekrochen|s
 kommen||kam|gekommen|s
 können|*|konnte|gekonnt|h
 laden|läd|lud|geladen|h
@@ -423,8 +424,13 @@ zwingen||zwang|gezwungen|h`;
     // (a helper counts only in the same clause: the «würde» of a main clause doesn't make the «haben» of a «weil» clause an infinitive)
     let cs0 = i; while (cs0 > 0 && !W[cs0 - 1].punct) cs0--;
     if (e.pos === 'v' && f.form === 'part' && W.slice(cs0, i).some(x => x._r && /^(haben|sein)$/.test(x._r.e.lemma) && finite(x._r.f))) s += 1.5;
+    // (DX-B2) an ihr-command never follows its clause's own verb: «Gestern habe ich ihn besucht» is the participle (after «ihn»
+    // or «ihm», forms of a subject pronoun, the command won and «habe» got a tense fix)
+    if (e.pos === 'v' && f.mood === 'imp' && W.slice(cs0, i).some(x => x._r && x._r.e.pos === 'v' && finite(x._r.f) && x._r.f.mood !== 'imp')) s -= 3;
     if (e.pos === 'v' && f.form === 'inf' && W.slice(cs0, i).some(x => x._r && (MODALS.has(x._r.e.lemma) || x._r.e.lemma === 'werden') && finite(x._r.f))) s += 1.5;
     if (e.pos === 'v' && f.form === 'inf' && pv && key(pv.w) === 'zu') s += 2;
+    // (DX-B2) right before a finite modal or «werden», a verb is the infinitive of the cluster: «…, weil … und ich helfen will»
+    if (e.pos === 'v' && f.form === 'inf' && nx.some(n => n.e.pos === 'v' && finite(n.f) && n.exact && (MODALS.has(n.e.lemma) || n.e.lemma === 'werden'))) s += 3;
     // der / die / das before a verb at the start of a clause: a pronoun («das ist…», «die kommt»)
     if ((e.det || e.art) && nx.length && !nx.some(n => n.e.pos === 'n' || n.e.pos === 'adj' || n.e.pos === 'num' || n.e.det)) s -= 1.5;
     return s;
@@ -454,6 +460,19 @@ zwingen||zwang|gezwungen|h`;
     if (SUBJP[k] && !(c && c.f.case && c.f.case !== 'nom')) return { pns: [SUBJP[k]], i };
     if (k === 'sie') return { pns: w.t === 'Sie' && i > 0 && !(W[i - 1].punct && /[.!?]/.test(W[i - 1].t)) ? ['3p'] : ['3s', '3p'], i };
     return null;
+  }
+  // (DX-B2) «Ein alter Reifendreher und ich haben…», «Du und ich sind…»: a pronoun joined by «und» / «oder» to the words
+  // before it, which have no verb of their own, is half of a plural subject, not the subject alone
+  function coordSubj(W, i) {
+    const p = pvi(W, i); if (p < 0 || !/^(und|oder|sowie)$/.test(key(W[p].t))) return false;
+    let n = 0;
+    for (let k = p - 1; k >= 0; k--) {
+      const w = W[k]; if (w.punct) break;
+      const c = w._r; if (c && c.e.pos === 'v' && finite(c.f)) return false;
+      if (c && (c.e.sub || c.e.coord)) break;
+      n++;
+    }
+    return n > 0;
   }
   // the clause around index i: [start, end] (word indices), and whether it's subordinate (starts with weil, dass…)
   function clauseOf(W, i) {
@@ -491,7 +510,7 @@ zwingen||zwang|gezwungen|h`;
     for (const w of W) {
       const c = w._r; if (!c || c.e.pos !== 'v' || !finite(c.f) || c.f.mood === 'imp') continue;
       const S = subjAt(W, pvi(W, w.i)) || subjAt(W, nxi(W, w.i));
-      if (!S) continue;
+      if (!S || coordSubj(W, S.i)) continue;
       Object.defineProperty(w, '_subj', { value: S, writable: true, enumerable: false, configurable: true });
       const ok = x => x.e.pos === 'v' && finite(x.f) && x.f.person && S.pns.includes(x.f.person + x.f.number);
       if (ok(c)) continue;
@@ -609,7 +628,9 @@ zwingen||zwang|gezwungen|h`;
         const rest = W.slice(v + 1, cl.e + 1).filter(x => !x.punct);
         const vOf = x => (x._c || []).filter(r => r.e && r.e.pos === 'v');
         const clusterEnd = rest.length > 0 && vOf(w).some(r => r.f.form === 'inf' || r.f.form === 'part') && vOf(rest[rest.length - 1]).some(r => finite(r.f) && (MODALS.has(r.e.lemma) || ['haben', 'sein', 'werden'].includes(r.e.lemma))) && rest.slice(0, -1).every(x => vOf(x).some(r => r.f.form === 'inf' || r.f.form === 'part'));
-        if (rest.length && !clusterEnd && key(rest[0].t) !== 'zu' && !rest.every(x => x._r && x._r.e.pos === 'v' && x._r.f.form === 'inf' && MODALS.has(c.e.lemma) === false && false)) {
+        // (a comparison may follow the verb, «Ausklammerung»: «…, dass man aus Fehlern mehr lernt als aus Erfolgen»)
+        const compare = rest.length && /^(als|wie)$/.test(key(rest[0].t));
+        if (rest.length && !clusterEnd && !compare && key(rest[0].t) !== 'zu' && !rest.every(x => x._r && x._r.e.pos === 'v' && x._r.f.form === 'inf' && MODALS.has(c.e.lemma) === false && false)) {
           const last = rest[rest.length - 1];
           const sx = SEP_INDEX(P).get(key(c.e.lemma) + '|' + key(last.t));
           let words = rest.map(x => x.t), verb = vt(v);
@@ -676,7 +697,7 @@ zwingen||zwang|gezwungen|h`;
     for (const v of a.verbs) {
       if (done.has(v)) continue;
       const w = W[v], c = w._r; if (c.f.mood === 'imp') continue;
-      const si = [pvi(W, v), nxi(W, v)].find(i => { const S = subjAt(W, i); const sc = rd(W, i); return S && !(sc && sc.e.det) && !(W[i - 1] && W[i - 1]._r && W[i - 1]._r.e.pos === 'prep'); });
+      const si = [pvi(W, v), nxi(W, v)].find(i => { const S = subjAt(W, i); const sc = rd(W, i); return S && !(sc && sc.e.det) && !(W[i - 1] && W[i - 1]._r && W[i - 1]._r.e.pos === 'prep') && !coordSubj(W, i); });
       if (si == null || si < 0) continue;
       const S = subjAt(W, si);
       if (w._c.some(x => x.e.pos === 'v' && finite(x.f) && x.f.person && S.pns.includes(x.f.person + x.f.number))) continue;
@@ -804,6 +825,7 @@ zwingen||zwang|gezwungen|h`;
   }
   function enGloss(c) {
     const e = c.e, f = c.f || {};
+    if (c.via === 'num' && c.num != null) return String(c.num);
     if (c.via === 'compound' && c.parts) return EN.first(c.parts[0].en) + ' ' + (f.number === 'p' ? EN.plural(c.parts[1].en) : EN.first(c.parts[1].en));
     if (e.pos === 'v' && f.k2) return EN.verb(e.en, { tense: 'cond', mood: 'ind', person: f.person, number: f.number });
     if (e.pos === 'v' && f.form === 'zu') return EN.verb(e.en, { form: 'inf' });
@@ -872,7 +894,15 @@ zwingen||zwang|gezwungen|h`;
   const expand0 = expand;
   function expandAll(tk, P) {
     const x = expand0(tk, P); if (x && x.length) return x;
-    if (NUMWORD.test(tk.t)) { const n = deNum(tk.t); if (n != null) { const e = P.entries.get('de:Zahl#num'); if (e) return [{ e, f: feat(''), w: tk.t, exact: true, via: 'num', num: n }]; } }
+    if (NUMWORD.test(tk.t)) {
+      const n = deNum(tk.t);
+      if (n != null) {
+        // (DX-B2: the number words' headword, never indexed itself, so «Zahl» stays the noun; «zweiundzwanzig» was unknown without it)
+        let e = P.entries.get('de:Zahl#num');
+        if (!e) { e = { id: 'de:Zahl#num', lemma: 'Zahl', pos: 'num', en: 'a number', band: 1, tags: ['number'] }; P.entries.set(e.id, e); }
+        return [{ e, f: feat(''), w: tk.t, exact: true, via: 'num', num: n }];
+      }
+    }
     return null;
   }
 
@@ -3200,6 +3230,67 @@ Spruch|m¨e|saying
 @2
 stimmen|v|be right (das stimmt); vote
 läuten|v|ring (a bell)
+`);
+  // DX-B2 (2026-11-26, the B2 dictionary helper): game/words_needed.txt's de words (A2's letters and debates), then about
+  // 1,000 B2 words by topic plus the B1 words that were missing. Standard German.
+  LISTS.push(`
+@2
+huhu|int|hoo-hoo (an owl’s call); yoo-hoo!|alt:huhuu
+auf+wachen|v.s|wake up
+@4
+wachen|v|be awake; keep watch
+@3
+führen|v|lead; run (a business); guide
+@2
+@2 food
+Pfannkuchen|m-|pancake
+@3
+kriechen|v|crawl
+wovor|adv|of what, from what (wovor hast du Angst?)|q
+Heimweg|m-e|the way home
+Brautpaar|n-e|the bride and groom
+darunter|adv|under it; among them
+selbstständig|a|independent; self-employed|alt:selbständig
+Zuhause|n0|home (das Zuhause)
+darin|adv|in it
+daran|adv|on it, of it (sich daran gewöhnen: get used to it)
+unglücklich|a|unhappy|-
+unnötig|a|unnecessary
+genau#adj|a|exact, precise; close (genauer: more closely)
+kleben|v|stick, glue
+gespannt|a|eager, curious (gespannt sein auf: can’t wait for)
+Advent|m0|Advent
+Adventszeit|f0|the Advent season
+Hunderte|pl|hundreds (Hunderte von …: hundreds of …)
+Uniform|f-en|uniform
+heimlich|a|secret; secretly
+an+probieren|v|try on (clothes)
+weiter+geben|v|pass on
+begegnen|v.s|meet, run into (+ dative)
+Parade|f-n|parade
+sowieso|adv|anyway
+@3 place
+Erzgebirge|n0|the Ore Mountains (in Saxony)
+@3 school,language
+Konjunktiv|m-e|the subjunctive (grammar: Konjunktiv II)
+@3 work,people
+Lokführer|m-|train driver|per f:Lokführerin
+@4 art,people
+Bildhauer|m-|sculptor|per f:Bildhauerin
+@4 animal
+Zecke|f-n|tick (the insect)
+@4
+dadurch|adv|that way, thereby; through it
+weiter+führen|v|keep (a business) going, carry on
+nachdenklich|a|thoughtful
+hin+schauen|v|look (closely), take a look
+begründen|v|give reasons for, justify
+Bergparade|f-n|miners’ parade (in the Ore Mountains at Advent)
+vorneweg|adv|out in front, leading
+marschieren|v.b|march
+Botschaft|f-en|message; embassy
+Empfang|m¨e|reception, welcome
+stumm|a|mute, silent
 `);
   const spec = {
     lang: 'de', lists: LISTS, entry, forms, expand: expandAll, prior, score, capNouns: true, callVerb: 'heißen',

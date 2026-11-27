@@ -130,7 +130,7 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
     const X = IRR[inf] || {};
     const out = []; const add = (w, k) => { if (w) out.push([w, k]); };
     const pinf = stripAcc(inf);
-    const t = pinf.slice(-2);
+    const t = pinf === 'por' ? 'er' : pinf.slice(-2);                // (pôr: its own forms are in IRR; the -er endings fill the rest)
     if (!E[t]) return out;
     const V = E[t], stem = pinf.slice(0, -2), O = ortho(pinf, cls);
     // 1st person singular stems (sinto, durmo), the u → o of subir (sobe), -ear → ei (passeio), odiar → odeio
@@ -168,10 +168,10 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
     ['sse', 'sses', 'sse', 'ssemos', 'sseis', 'ssem'].forEach((en, n) => add((n === 3 || n === 4 ? bAcc : b) + en, 'impf.subj.' + PN[n]));
     const bf = b.replace(/í$/, 'i');
     ['r', 'res', 'r', 'rmos', 'rdes', 'rem'].forEach((en, n) => add((n === 1 || n === 5 ? b : bf) + en, 'fut.subj.' + PN[n]));
-    ['', 'es', '', 'mos', 'des', 'em'].forEach((en, n) => add(inf + en, 'pinf.' + PN[n]));
+    ['', 'es', '', 'mos', 'des', 'em'].forEach((en, n) => add((en ? pinf : inf) + en, 'pinf.' + PN[n]));   // (pôr, pores, pormos)
     add(X.im || pres[2], 'imp.2s');
     add(subj[2], 'imp.2s.fo'); add(subj[5], 'imp.2p.fo'); add(subj[3], 'imp.1p');
-    add(stem + V.vt, 'imp.2p.vt');
+    add(inf === 'pôr' ? 'ponde' : stem + V.vt, 'imp.2p.vt');
     add(X.g || (inf === 'pôr' ? 'pondo' : stem + V.ger), 'ger');
     partForms(pp || X.pp || join(stem, V.part, O)).forEach(([w, k]) => add(w, k));
     add(inf, 'inf');
@@ -240,8 +240,42 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
   // ------------------------------------------------------------ clitics after a hyphen (chamo-me, dá-me, fazê-lo, levantar-se)
   const CLIT = new Set(['me', 'te', 'se', 'o', 'a', 'os', 'as', 'lo', 'la', 'los', 'las', 'no', 'na', 'nos', 'nas', 'lhe', 'lhes', 'vos']);
   const MESO = new Set(['ei', 'as', 'a', 'emos', 'eis', 'ao', 'ia', 'ias', 'iamos', 'ieis', 'iam']);
+  // diminutives (DX-B2): -inho / -inha / -zinho / -zinha (+ s) on a noun or adjective the list knows, for a word the index
+  // doesn't: casinha, escolinha, caixinha, cafezinho, pãozinho, hotelzinho, menorzinha, fresquinha (c → qu), amiguinho (g → gu),
+  // pedacinho (ç → c), pãezinhos / florezinhas (from the plural). A noun keeps its gender («o probleminha»); an adjective takes
+  // the ending's. Never a capitalized word (a name: «Pedrinho», «Rosinha»).
+  // (a game word, LEX's, keeps its own headword: «pazinha» is the trowel, «joaninha» the ladybug)
+  function lexWord(P, k) {
+    if (typeof LEX === 'undefined' || !LEX.ids) return false;
+    const ids = LEX.ids();
+    if (!P._lexW || P._lexWN !== ids.length) {
+      P._lexW = new Set(); P._lexWN = ids.length;
+      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; for (const w of [String(it[P.lang])].concat((it.alt && it.alt[P.lang]) || [])) { const c = String(w).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); } }
+    }
+    return P._lexW.has(k);
+  }
+  function dims(tk, P) {
+    const raw = tk.t;
+    if (raw.length < 6 || raw[0] !== raw[0].toLowerCase()) return null;
+    const k = key(raw), m = /inh([oa])(s?)$/.exec(k); if (!m || lexWord(P, k)) return null;
+    const stem = k.slice(0, m.index), g = m[1] === 'a' ? 'f' : 'm', n = m[2] ? 'p' : 's';
+    const bases = [], put = (b, min = 3) => { if (b.length >= min && !bases.includes(b)) bases.push(b); };
+    const v = g === 'f' ? 'a' : 'o', st = stem.replace(/qu$/, 'c').replace(/gu$/, 'g');
+    if (/z$/.test(stem)) { const s2 = stem.slice(0, -1); put(s2, 2); if (n === 'p') put(s2 + 's'); }   // (pá → pazinha, pé → pezinho)
+    put(st + v); put(stem + v); put(st + 'e');
+    put(stem);
+    const out = [], seen = new Set();
+    for (const b of bases) for (const r of P.IX.get(b) || []) {
+      const e = r.e;
+      if ((e.pos !== 'n' && e.pos !== 'adj') || (e.auto && !(e.pos === 'n' && e.g)) || seen.has(e.id)) continue;
+      seen.add(e.id);
+      const gg = e.pos === 'n' && (e.g === 'm' || e.g === 'f') && !e.fem ? e.g : g;
+      out.push({ e, f: feat(gg + '.' + n), w: raw, exact: true, via: 'dim' });
+    }
+    return out.length ? out : null;
+  }
   function expand(tk, P) {
-    const raw = tk.t; if (raw.indexOf('-') < 0) return null;
+    const raw = tk.t; if (raw.indexOf('-') < 0) return dims(tk, P);
     const parts = raw.split('-'), cls = parts.slice(1).map(x => key(x));
     let end = '';
     if (cls.length >= 2 && MESO.has(cls[cls.length - 1])) end = cls.pop();       // dar-lhe-ei → darei + lhe
@@ -313,6 +347,13 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
     }
     // a second verb right after a noun, in a clause that has its verb already («comi um ovo frito»): unlikely
     if (e.pos === 'v' && LATIN.finite(f) && pv && (pv.e.pos === 'n' || pv.e.pos === 'adj') && clauseFinite(W, i)) s -= 1.5;
+    // (DX-B2) a contraction or article typed right, before a word the list doesn't know, stays one: «os nomes das samambaias»
+    // (not «dás» with its accent missing)
+    if ((e.det || e.art) && c.exact && ctx.next && !ctx.next.length) s += 2;
+    // «o jeito como a senhora conta…»: «como» right after a noun is the conjunction, not «(eu) como»
+    if (e.pos === 'v' && k === 'como' && pv && pv.e.pos === 'n') s -= 2.5;
+    // «pôr» typed with its circumflex is the verb, never the preposition: «vou pôr a mesa», «o pôr do sol»
+    if (e.pos === 'v' && k === 'por' && c.exact) s += 2;
     return s;
   }
 
@@ -491,6 +532,7 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
       return s;
     }
     if (low(c.w) === low(e.lemma)) return '';
+    if (c.via === 'dim') return 'diminutive' + (f.number === 'p' ? ', plural' : '');
     if (e.pos === 'n') return e.fem && f.gender === 'f' ? 'feminine' + (f.number === 'p' ? ' plural' : '') : f.number === 'p' ? 'plural' : '';
     if (e.pos === 'adj' || e.pos === 'det' || e.pos === 'pron') return gnText(f);
     return '';
@@ -500,7 +542,8 @@ destruir|p:destruo,destróis,destrói,destruímos,destruís,destroem`;
     if (e.pos === 'v' && f.form === 'pinf') return EN.verb(e.en, { form: 'inf' });
     if (e.pos === 'v' && (f.mood || f.form)) return EN.verb(e.en, f);
     const m = /^([^/,;()]+)\/([^,;()]+)(.*)$/.exec(e.en || '');
-    const en = m ? (f.gender === 'f' ? m[2] : m[1]) + m[3] : e.en;
+    let en = m ? (f.gender === 'f' ? m[2] : m[1]) + m[3] : e.en;
+    if (c.via === 'dim' && e.pos === 'n') en = 'little ' + en;
     if (e.pos === 'n' && f.number === 'p' && !e.plOnly) return EN.plural(en);
     return en;
   }
@@ -2697,6 +2740,59 @@ cansativo|a|tiring
 equipe|f|team
 túnel|m|tunnel
 frito|a|fried
+`);
+  // DX-B2 (2026-11-26, the B2 dictionary helper): game/words_needed.txt's pt words (A2's letters and debates), then about
+  // 1,000 B2 words by topic plus the B1 words that were missing. Brazilian Portuguese.
+  LISTS.push(`
+@1
+ei|int|hey
+ah|int|ah, oh
+@2
+novidade|f|news, something new (alguma novidade?: any news?)
+convite|m|invitation
+bobo|a|silly (ficar todo bobo: be touched, melt)
+demorar|v|take (a long) time; be late
+qualquer|det:qualquer=s,quaisquer=p|any, whichever|quant
+certeza|f|certainty (ter certeza: be sure)
+copiar|v|copy
+correio|m|mail, post; post office
+banho|m|bath, shower (tomar banho: take a shower)
+recado|m|message (deixar recado: leave a message)
+merenda|f|school snack or lunch
+couve|f|kale, collard greens
+educação|f|education; manners
+plantar|v|plant
+pouquinho|adv|a little bit (um pouquinho)
+@3
+coitado|a|poor thing (coitado!: poor thing!)
+turnê|f|(music) tour
+perceber|v|notice, realize
+aplaudir|v|applaud, clap
+motivo|m|reason, motive
+motor|m|engine, motor
+instrumento|m|instrument
+máquina|f|machine (maquininha de cartão: card machine)
+vestibular|m|university entrance exam
+medicina|f|medicine (the field)
+condicional|m|the conditional (grammar)
+embarcar|v|board (a plane, a boat)
+fotografar|v|photograph
+erva|f|herb
+freguês|m~|customer, regular (at a shop)|per
+embalagem|f|packaging, wrapping
+conteúdo|m|content, what’s inside
+hóspede|mf|guest (at an inn or hotel)|per
+comunitário|a|community (horta comunitária: community garden)
+terreno|m|(empty) lot, plot of land; ground
+molecada|f|the kids (casual)|coll
+criançada|f|the kids (as a group)|coll
+opção|f|option
+mutirão|m|community work party (neighbors working together)
+urgente|a|urgent
+cedinho|adv|nice and early
+agorinha|adv|just now; in a moment
+pertinho|adv|really close
+rapidinho|adv|real quick
 `);
   const spec = {
     lang: 'pt', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'chamar-se',

@@ -290,7 +290,7 @@ const MH_FCHAPEL = (() => {
     }
     if (i === 1 && !s.ambush) {
       await K.wait(1.0);
-      await M.you('Shadows of stone come off the choir stalls! A fight, in the Future: tell {mimo} its plans.');
+      await M.you('Shadows of stone come off the choir stalls! A fight, tomorrow: imagine it, and a what-if lands twice as hard (plans work too).');
       const r = await TIME.fight({ foes: [{ kind: 'beetle', color: 'white', size: 'small' }, { kind: 'bat', color: 'white', size: 'small' }], place: { x: -45, z: -372, biome: 'stonewood' } });
       if (!r || r.outcome !== 'win') return false;
       s.ambush = true; K.G.save();

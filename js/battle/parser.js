@@ -53,7 +53,12 @@
       } else for (const w of [p.w].concat(p.alt || [])) I.pos.set(nrm(w), { key, g: p.g, show: w });
     }
     I.posStems.sort((a, b) => b.n.length - a.n.length);
-    for (const [key, v] of Object.entries(L.verbs)) for (const f of v.forms) I.verbs.set(nrm(f), { key, show: f });
+    // (a verb's forms come usual one first. One that only differs by its accents never takes that one's place: «sopla» says back
+    // «¡Sopla!», not the voseo «¡Soplá!», and «sóplale» keeps its accent; the other spelling is still right as typed: ok)
+    for (const [key, v] of Object.entries(L.verbs)) for (const f of v.forms) {
+      const n = nrm(f), had = I.verbs.get(n);
+      if (!had) I.verbs.set(n, { key, show: f, ok: new Set([f.toLowerCase()]) }); else if (had.key === key) had.ok.add(f.toLowerCase());
+    }
     for (const [key, s] of Object.entries(L.species)) {
       I.species.set(nrm(s.w), { key, g: s.g, show: s.w });
       if (s.pl && nrm(s.pl) !== nrm(s.w)) I.species.set(nrm(s.pl), { key, g: s.g, show: s.pl, pl: true });   // «Käfer» is both
@@ -169,7 +174,7 @@
     if (!m || !m.tok) return;
     const raw = m.tok.raw.toLowerCase(), full = m.show ? (m.show + (m.end || '')).toLowerCase() : null;   // German adjectives: stem + ending
     if (m.typo) fix(c, full && nrm(unUml(raw)) === nrm(full) ? 'accent' : 'spelling');
-    else if (full && raw !== full && nrm(raw) === nrm(full)) fix(c, 'accent');
+    else if (full && raw !== full && nrm(raw) === nrm(full) && !(m.ok && m.ok.has(raw))) fix(c, 'accent');
   }
   function newClause(verb, tok, m) {
     return { verb, baseVerb: verb, verbTok: tok, verbShow: m.show, verbTypo: m.typo, errors: [], fixes: [], words: [], untaught: [], unknownToks: [],
@@ -1093,6 +1098,8 @@
     ['fill', '', '[现在|xiàn zài]'], ['fill', '', '[嘿|hēi]'], ['fill', '', '[喂|wèi]'], ['fill', '', '[加油|jiā yóu]'], ['fill', '', '[用力|yòng lì]'], ['fill', '', '[使劲|shǐ jìn]'],
     ['fill', '', '[狠狠|hěn hěn] [地|de]'], ['fill', '', '[狠狠|hěn hěn]'], ['fill', '', '[好|hǎo]'], ['fill', '', '[来|lái]'], ['fill', '', '[一起|yī qǐ]'],
     ['voc', '', '[米莫|Mǐ mò]'],
+    // it, them: where a target goes («打它», «把它推倒», «跳到它身上»), it's the one Mimo picks, like «golpéalo»
+    ['pron', 'ta', '[它|tā]'], ['pron', 'ta', '[它们|tā men]'],
     // talk (and negation: Mimo doesn't take «don't» commands yet), so the cover never finds a verb inside them
     ['talk', '', '[打架|dǎ jià]'], ['talk', '', '[朋友|péng you]'], ['talk', '', '[我们|wǒ men]'], ['talk', '', '[我|wǒ]'], ['talk', '', '[是|shì]'], ['talk', '', '[想|xiǎng]'], ['talk', '', '[要|yào]'],
     ['talk', '', '[不要|bù yào]'], ['talk', '', '[怕|pà]'], ['talk', '', '[害怕|hài pà]'], ['talk', '', '[会|huì]'], ['talk', '', '[不会|bù huì]'], ['talk', '', '[伤害|shāng hài]'], ['talk', '', '[冷静|lěng jìng]'],
@@ -1109,6 +1116,7 @@
     ['fill', '', '[一番|いちばん]'], ['fill', '', 'だ'], ['fill', '', 'です'], ['fill', '', 'ぞ'], ['fill', '', 'ちゃん'], ['fill', '', 'くん'], ['fill', '', 'がんばって'], ['fill', '', '[思|おも]いっきり'],
     ['fill', '', '[強|つよ]く'], ['fill', '', 'じゃあ'],
     ['voc', '', 'ミモ'],
+    ['pron', 'sore', 'それ'], ['pron', 'are', 'あれ'], ['pron', 'kore', 'これ'],          // (it / that / this: the one Mimo picks, «それを打って»)
     ['talk', '', 'けんか'], ['talk', '', 'したくない'], ['talk', '', 'しない'], ['talk', '', 'たたかいたくない'], ['talk', '', 'たたかわない'], ['talk', '', 'ともだち'], ['talk', '', '[友達|ともだち]'],
     ['talk', '', 'なかま'], ['talk', '', '[仲間|なかま]'], ['talk', '', 'こわくない'], ['talk', '', '[怖|こわ]くない'], ['talk', '', 'こわがらないで'], ['talk', '', 'だいじょうぶ'], ['talk', '', '[大丈夫|だいじょうぶ]'],
     ['talk', '', 'おちついて'], ['talk', '', 'いじめない'], ['talk', '', 'きずつけない'], ['talk', '', 'なにも'], ['talk', '', 'やめよう'], ['talk', '', 'やめて'],
@@ -1407,6 +1415,7 @@
       if (!t && has(p, 'cl') && prev && (prev.t === 'det' || prev.t === 'num')) t = 'cl';
       if (!t) t = ['det', 'num', 'cl'].find(x => has(p, x)) || null;
       if (!t && (has(p, 'zai') || has(p, 'most') || has(p, 'fill') || has(p, 'voc'))) continue;     // (在左边的…, 最左边的…)
+      if (!t && has(p, 'pron')) { r.pron = p; continue; }                                         // (它: the one Mimo picks)
       if (!t) { r.unk.push(p); continue; }
       const x = get(p, t);
       items.push({ t, p, x, de: false });
@@ -1503,7 +1512,7 @@
     if (z.zaiV || (z.asp && !(z.ba && z.asp === 'le' && z.aspEnd))) err(c, 'verbform');      // «跳了», «在跳» → «跳！»
     if (z.front) err(c, 'order');                                                            // «红蛾子打» → «打红蛾子» / «把红蛾子…»
     if (z.instr) { if (z.instr.how !== 'yong') err(c, 'yong'); if (z.instr.late) err(c, 'order'); }
-    if (c.baseVerb === 'jump' && !z.direct && !c.auto && !z.link && !z.linkAfter && !z.toward) err(c, 'link');   // «跳红蛾子» → «跳到红蛾子身上»
+    if (c.baseVerb === 'jump' && !z.direct && (!c.auto || (np && np.pron && !z.ba)) && !z.link && !z.linkAfter && !z.toward) err(c, 'link');   // «跳红蛾子» → «跳到红蛾子身上» (and «跳它» → «跳到它身上»)
     if (z.ba && !z.result && !z.yixia && !z.asp) { fix(c, 'style'); fix(c, 'baBare'); }
     for (const k of np.errs) err(c, k);
     measure(c, np, ctx.L);
@@ -1542,13 +1551,14 @@
       return z.ba ? `[把|bǎ] ${cl}${c.food.w} ${baVerb('eat', z, v)}` : `${v} ${cl}${c.food.w}`;
     }
     const jump = base === 'jump' && !z.direct;
+    const pe = z.np && z.np.pron ? get(z.np.pron, 'pron') : null, pron = pe ? pe.e.src : null;        // (它 / 它们, said back as typed)
     if (c.part && c.partKey) {
-      const od = c.ownerShown ? c.owner : c.ownerAdd || null, own = od ? npZhSay(L, c.target, od) : null, pw = L.parts[c.partKey].w;
+      const od = c.ownerShown ? c.owner : c.ownerAdd || null, own = (od ? npZhSay(L, c.target, od) : null) || pron, pw = L.parts[c.partKey].w;
       const np = own ? (own.endsWith(DE) ? `${own} ${pw}` : `${own} ${DE} ${pw}`) : pw;
       if (jump) return `${v} [到|dào] ${np} [上|shàng]`;
       return z.ba ? `${instr}[把|bǎ] ${np} ${baVerb(base, z, v)}` : `${instr}${v} ${np}`;
     }
-    const np = c.auto ? null : npZhSay(L, c.target, c.desc);
+    const np = c.auto ? pron : npZhSay(L, c.target, c.desc);
     if (!np) return `${instr}${v}`;
     if (jump) return z.link === 'shang' ? `${v} [上|shàng] ${np}` : `${v} [到|dào] ${np} [身上|shēn shang]`;
     if (z.ba) return `${instr}[把|bǎ] ${np} ${baVerb(base, z, v)}`;
@@ -1568,6 +1578,7 @@
       if (has(p, 'iru')) { const it = items[items.length - 1]; if (it) it.niiru = true; continue; }
       const t = ['noun', 'part', 'food', 'stone', 'pos', 'adj', 'det'].find(x => has(p, x)) || null;
       if (!t && (has(p, 'fill') || has(p, 'voc'))) continue;
+      if (!t && has(p, 'pron')) { r.pron = p; continue; }                                         // (それ: the one Mimo picks)
       if (!t) { r.unk.push(p); continue; }
       items.push({ t, p, x: get(p, t) });
     }
@@ -1652,7 +1663,7 @@
   function checkJa(c, ctx) {
     const j = c.cj, np = j.np;
     if (/^(dict|masu|bad)$/.test(j.form)) err(c, 'teForm');                                  // «打つ», «打ちます» → «打って»
-    if (j.hasTarget && !(c.auto && !c.food)) {
+    if (j.hasTarget && (!(c.auto && !c.food) || (np && np.pron))) {                              // (それ takes を too)
       const want = c.baseVerb === 'jump' && !j.wo ? 'ni' : 'wo';
       if (j.tp === want) { /* right */ }
       else if (j.tp == null) { fix(c, 'style'); fix(c, want === 'ni' ? 'niDrop' : 'woDrop'); }   // (left out, as people do when they talk)
@@ -1686,11 +1697,12 @@
     if (base === 'sing' || base === 'blow' || base === 'climb' || base === 'call' || base === 'light' || base === 'dig') return v;
     if (c.food) return `${c.food.w} を ${v}`;
     const prt = base === 'jump' && !j.wo ? 'に' : 'を';
+    const pe = j.np && j.np.pron ? get(j.np.pron, 'pron') : null, pron = pe ? pe.e.src : null;        // (それ / あれ / これ, said back as typed)
     if (c.part && c.partKey) {
-      const od = c.ownerShown ? c.owner : c.ownerAdd || null, own = od ? npJaSay(L, c.target, od) : null, pw = L.parts[c.partKey].w;
+      const od = c.ownerShown ? c.owner : c.ownerAdd || null, own = (od ? npJaSay(L, c.target, od) : null) || pron, pw = L.parts[c.partKey].w;
       return `${instr}${own ? (own.endsWith(' の') ? `${own} ${pw}` : `${own} の ${pw}`) : pw} ${prt} ${v}`;
     }
-    const np = c.auto ? null : npJaSay(L, c.target, c.desc);
+    const np = c.auto ? pron : npJaSay(L, c.target, c.desc);
     return np ? `${instr}${np} ${prt} ${v}` : `${instr}${v}`;
   }
 

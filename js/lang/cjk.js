@@ -874,8 +874,13 @@ const CJK = (() => {
 
   // ---------------------------------------------------------------- checking the notation (CJK.md)
   // The problems in one string, as short sentences ([] when it's fine).
+  // (numbers in a line: a number slot that's filled in at run time ({n}, {num}, {count}, {price}, {hour}…, the quiz's and the
+  // exams' templates) is a number token, and so is a number with its own separators inside (10:30, １０：３０, 3–5, 1,000))
+  const NUM_SLOT = /\{(?:n|num|number|count|total|sum|price|cost|coins|amount|qty|hour|hours|min|mins|minutes|sec|secs|seconds|day|days|date|week|weeks|month|months|year|years|age|score|points|pts|max|level|rank|nth)\d*\}|\{\d+\}/gi;
+  const NUM_RUN = /[0-9０-９]+(?:[:：.．,，\-–—~～〜/／][0-9０-９]+)+/g;
   function validate(src, l) {
     src = String(src == null ? '' : src).replace(/(^| )\*(?=\S)/g, '$1').replace(/(\S)\*(?= |$)/g, '$1');      // (*starred* words, the ones a hushed line keeps: the stars aren't tokens)
+    src = src.replace(NUM_SLOT, '0').replace(NUM_RUN, '0');
     l = l || guess(src) || defLang(src);
     const P = [], add = m => { if (!P.includes(m)) P.push(m); };
     if (/[[\]{}]/.test(src.replace(/\[[^[\]]*\]/g, '').replace(/\{[^{}]*\}/g, ''))) add('a [ ] or { } without its partner, or a bracket inside a bracket');

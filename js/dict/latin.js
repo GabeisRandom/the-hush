@@ -84,7 +84,8 @@ const LATIN = (() => {
     }
     const pp = w => (IRR[w] ? IRR[w][1] : past(w));
     // the first sense, without notes: «think, believe» → «think»; «be (state, place)» → «be»; «to go» → «go»
-    const first = en => String(en || '').split(/[;,]/)[0].replace(/\(.*?\)/g, '').replace(/^to /, '').trim();
+    // (the notes go first: a note with a comma, «know (a person, a place); meet», gave «know (a person»)
+    const first = en => String(en || '').replace(/\(.*?\)/g, '').split(/[;,]/)[0].replace(/^\s*to /, '').trim();
     const SUBJ = { '1s': 'I', '2s': 'you', '3s': 'he/she', '1p': 'we', '2p': 'you all', '3p': 'they' };
     const BE = { pres: { '1s': 'am', '3s': 'is' }, past: { '1s': 'was', '3s': 'was' } };
     // the verb's gloss in a form: verb('eat', { tense: 'past', mood: 'ind', person: 1, number: 's' }) → 'I ate'

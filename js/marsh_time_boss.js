@@ -277,6 +277,8 @@ const MHBOSS = (() => {
   // the other languages: what {mimo} does in the rest of the sentence, found by its verb (in any tense: a memory, a what-if), then
   // given to the battle as that verb's plain command (each verb one clause: a «y» chain stays two)
   const VSTEM = {
+    // (es: only for an ordinary fight's what-if, ifAct below: the bosses read es through the battle's own parser)
+    es: { 'v.hit': /\bgolpe/, 'v.jump': /\bsalt/, 'v.blow': /\bsopl/, 'v.push': /\bempuj/, 'v.throw': /\b(lanz|tir|arroj)/, 'v.dig': /\b(cav|excav)/, 'v.light': /\b(ilumin|alumbr)/, 'v.swim': /\bnad/, 'v.climb': /\b(trep|sub|escal)/, 'v.sing': /\bcant/ },
     pt: { 'v.hit': /\b(bat|soc)/, 'v.jump': /\b(pul|salt)/, 'v.blow': /\b(sopr|assopr)/, 'v.push': /\bempurr/, 'v.throw': /\b(jog|arremess|lanc)/, 'v.dig': /\b(cav|escav)/, 'v.light': /\b(ilumin|acend)/, 'v.swim': /\bnad/, 'v.climb': /\b(subi|sobe|escal)/, 'v.sing': /\bcant/ },
     // (German verbs may carry a separable particle: «wegpusten», «umgeschoben»)
     de: Object.fromEntries(Object.entries({ 'v.hit': 'schlag|schlug|geschlagen|hau(?!s)|gehauen', 'v.jump': 'spring|sprang|gesprungen|hupf|gehupft', 'v.blow': 'pust|gepustet|blas|blies|geblasen', 'v.push': 'schieb|schob|geschoben', 'v.throw': 'wirf|werf|warf|geworfen',
@@ -303,7 +305,7 @@ const MHBOSS = (() => {
     for (const id of ids) {
       const r = parse0.call(self, String(LEX.form(id)), Object.assign({}, ctx, { tbSkip: true }));
       if (!(r && r.ok && r.kind === 'command' && r.clauses && r.clauses.length)) continue;
-      for (const c of r.clauses) c.target = f;
+      for (const c of r.clauses) if (f) c.target = f;          // (no f: an ordinary fight's what-if, the one {mimo} picks)
       if (!base) base = r; else base.clauses = base.clauses.concat(r.clauses);
     }
     return base;
@@ -442,7 +444,10 @@ const MHBOSS = (() => {
     pt: { si: ['se'], good: x => /(ss[ea]|ssem|sses)$/.test(x) && !['esse', 'essa', 'esses', 'essas', 'nesse', 'nessa', 'desse', 'dessa'].includes(x), real: ['e', 'es', 'esta', 'for', 'fores', 'estiver', 'forem'], cond: /(ria|rias|riam)$/, mainS: /(ria|rias|riam|riamos)$/, mainB: /(ra|rao|remos)$|^vai$|^vou$/ },
     de: { si: ['wenn', 'falls'], good: ['warst', 'ware', 'warest', 'hattest', 'hatte', 'konntest', 'konnte'], real: ['bist', 'ist'], mainS: ['wurde', 'wurdest', 'wurden', 'konnte', 'konntest'], mainB: ['wird', 'wirst'] },
   };
-  function ifOutOther(text, lg) {
+  // o.act (an ordinary fight's what-if, ifAct below): the «if» half may hold an action, not only «were (made of)…»: pt any imperfect
+  // subjunctive (already), de «würde» there too; a real if is any battle verb there; de «wird» there is the miss. Off (the gargoyle):
+  // exactly as before
+  function ifOutOther(text, lg, o = {}) {
     const raw = String(text || '').replace(/[¡!¿?。！？]/g, ' ').trim();
     const MW = MAT_WORDS[lg] || {}, matIn = s => { const f = s.replace(/\s+/g, ''), n = ' ' + nrmW(s) + ' '; for (const [k, list] of Object.entries(MW)) if (list.some(w => (/[぀-ヿ一-鿿]/.test(w) ? f.includes(w) : n.includes(' ' + nrmW(w) + ' ')))) return k; return null; };
     if (lg === 'zh' || lg === 'ja') {
@@ -454,7 +459,7 @@ const MHBOSS = (() => {
       let mood = 'S', main = 'S';
       if (lg === 'zh') { const rf = rest.replace(/\s+/g, ''), would = /会|能|可以/.test(rf) || /\b(hui|neng|ke ?yi)\b/.test(rr); if ((/了/.test(rf) || /\ble\b/.test(rr)) && !would) mood = 'X'; if (!would) main = 'B'; void all; }
       else { if (/(た|だ|ました)$/.test(rest.replace(/\s+/g, '')) || /(ta|da|mashita)$/.test(rr.replace(/[^a-z]/g, ''))) mood = 'X'; if (!/でしょう|だろう|のに|かも/.test(rest.replace(/\s+/g, '')) && !/(deshou|darou|noni|kamo)/.test(rr.replace(/[^a-z]/g, ''))) main = 'B'; }
-      return { mood, mat: matIn(clause), rest, main };
+      return { mood, mat: matIn(clause), rest, main, ifPart: clause };
     }
     const W = IFX[lg]; if (!W) return null;
     const cut = raw.search(/[,;]/); if (cut < 0) return null;
@@ -465,26 +470,41 @@ const MHBOSS = (() => {
     const has = (list, x) => (typeof list === 'function' ? list(x) : list instanceof RegExp ? list.test(x) : list.includes(x));
     let mood = null;
     if (clause.some(x => has(W.good, x))) mood = 'S'; else if (W.cond && clause.some(x => has(W.cond, x))) mood = 'X'; else if (clause.some(x => has(W.real, x))) mood = 'B';
+    if (!mood && o.act) {
+      if (lg === 'de' && clause.some(x => ['wurde', 'wurdest', 'wurden'].includes(x))) mood = 'S';
+      else if (lg === 'de' && clause.some(x => ['wird', 'wirst', 'werden'].includes(x))) mood = 'X';
+      else if (verbsIn(cl, lg).length) mood = 'B';
+    }
     if (!mood) return null;
     const n = rest.split(/\s+/).map(nrmW), main = n.some(x => has(W.mainS, x)) ? 'S' : n.some(x => has(W.mainB, x)) ? 'B' : 'S';
-    return { mood, mat: matIn(cl), rest, main };
+    return { mood, mat: matIn(cl), rest, main, ifPart: cl };
   }
-  function ifOut(text, lg) {
-    if (lg !== 'es') return ifOutOther(text, lg);
+  // (o.act, an ordinary fight's what-if: any imperfect subjunctive in the «si» half is the what-if, any «-ría» there the miss, any battle
+  // verb there a real if; the second half is turned into its command even with no material. Off (the gargoyle): exactly as before)
+  const ES_NOT_SUBJ = ['para', 'cara', 'clara', 'rara', 'vara', 'cuchara', 'tiara', 'mascara', 'clase', 'base', 'fase', 'frase', 'pase', 'case'];
+  const ES_NOT_COND = ['historia', 'memoria', 'gloria', 'victoria', 'maria', 'feria', 'materia', 'noria', 'alegria', 'energia', 'cria', 'tranvia'];
+  function ifOut(text, lg, o = {}) {
+    if (lg !== 'es') return ifOutOther(text, lg, o);
     const W = IFOUT[lg]; if (!W) return null;
     const raw = String(text || '').replace(/[¡!¿?]/g, ' ').trim();
     const cut = raw.search(/[,;]/); if (cut < 0) return null;
     const a = raw.slice(0, cut).trim(), b = raw.slice(cut + 1).trim();
     const isIf = s => { const n = s.split(/\s+/).map(nrmW); return n[0] === 'si' || n.includes('si') ? n : null; };
-    let clause = isIf(a), rest = b; if (!clause) { clause = isIf(b); rest = a; }
+    let clause = isIf(a), rest = b, cl = a; if (!clause) { clause = isIf(b); rest = a; cl = b; }
     if (!clause || !rest) return null;
     let mood = null;
     if (clause.some(x => W.good.includes(x))) mood = 'S'; else if (clause.some(x => W.cond.includes(x))) mood = 'X'; else if (clause.some(x => W.real.includes(x))) mood = 'B';
+    if (!mood && o.act) {
+      if (clause.some(x => x.length > 4 && !ES_NOT_SUBJ.includes(x) && /(ara|aras|aran|aramos|iera|ieras|ieran|ieramos|ase|ases|asen|asemos|iese|ieses|iesen|iesemos)$/.test(x))) mood = 'S';
+      else if (clause.some(x => x.length > 4 && !ES_NOT_COND.includes(x) && /(ria|rias|rian|riamos)$/.test(x))) mood = 'X';
+      else if (verbsIn(cl, lg).length) mood = 'B';
+    }
     if (!mood) return null;
     const MW = MAT_WORDS[lg] || {}; let mat = null;
     for (const [k, list] of Object.entries(MW)) if (list.some(w => clause.includes(nrmW(w)))) { mat = k; break; }
+    if (!mat && o.act) { const m = esMain(rest); return { mood, mat: null, rest: m.text, main: m.main, ifPart: cl }; }
     if (!mat) return { mood, mat: null, rest, main: 'S' };
-    const m = esMain(rest); return { mood, mat, rest: m.text.replace(/\bte\b\s*/gi, '').replace(/\ba\s+ti\b/gi, '').trim(), main: m.main };
+    const m = esMain(rest); return { mood, mat, rest: m.text.replace(/\bte\b\s*/gi, '').replace(/\ba\s+ti\b/gi, '').trim(), main: m.main, ifPart: cl };
   }
   async function askIf(K, FX) {
     const Pp = _ && _.P; if (!Pp) return K.askOrFlee('command');
@@ -605,6 +625,152 @@ const MHBOSS = (() => {
     hook();
     return TIME.fight({ boss: 'stone_gargoyle', foes: [{ kind: 'stone_gargoyle', color: 'white', size: 'big', giant: 1, hp: 40 }], place: arena('stonewood', -45, -372), tb: { noGlimpse: true, noQueue: true, scene: () => false } });
   }
+
+  // ------------------------------------------------------------ the Gray Marsh's tomorrow in its ORDINARY fights (the Stone Chapel's
+  // ambush, any fight out on tomorrow's marsh; not the gargoyle, whose own loop reads it as above): the world's rung, the what-if, is a
+  // command there too, read by the gargoyle's own readers (ifOut / ifOutOther with act: an action in the «if» half). Its second half is
+  // the command: it lands now, ×2, IMAGINE ×2 (each move of a «y» chain). Plans still work as plans.
+  //   es «Si {mimo} saltara, golpearía al rojo» · pt «Se {mimo} pulasse, bateria no vermelho» · de «Wenn {mimo} springen würde, würde
+  //   {mimo} den Roten schlagen» · zh «要是{mimo}跳，就会打红色的» · ja «もし{mimo}が跳んだら、赤いのを打つでしょう»
+  // A real if is a B (mhReal), the second half not in the conditional a B (mhMain), and the conditional right after «si» (de «wird» after
+  // «wenn», zh 了, ja a past ending) is a miss with the tip, no turn spent (mh:condsi). The first turn's rung box, frame and tip teach it.
+  //   MHBOSS.ifAct(text, lang) · MHBOSS.ifModel(L, verb, foe, ifVerb, desc) · MHBOSS.ifWorld()
+  const ifAct = (text, lg) => (IF_FN[lg] ? IF_FN[lg](text, { act: true }) : ifOut(text, lg, { act: true }));
+  function ifWorld() {
+    try {
+      const x = _ && _.flow, G = x && x.G; if (!G || !G.running || G.practice) return false;
+      const o = G.opts || {}; if (o.boss || o.realm !== 'future') return false;
+      if (o.place && o.place.biome === 'stonewood') return true;
+      return typeof TIME !== 'undefined' && TIME.world && TIME.world() === 'future' && TIME.regionNow && TIME.regionNow() === 'marsh';
+    } catch (e) { return false; }
+  }
+  // the second half, said as the plain command the battle reads (the bosses' own way: esMain for es)
+  const IF_CMD = {
+    es: s => s,
+    pt: s => s.replace(/\b(vai|vou|iria|ia)\s+([a-zà-ú]+?)r\b/gi, '$2').split(/\s+/).map(w => (verbsIn(w, 'pt').length ? w.replace(/(ríamos|riamos|riam|rias|ria|rão|rá)$/i, '') : w)).join(' '),
+    de: s => { const t = s.replace(/\b(würde|würdest|würden|wurde|wird|wirst|werde|werden)\b/gi, ' ').replace(/\b(er|es|ihm)\b/g, ' ').replace(/\s+/g, ' ').trim(); const m = t.match(/^(.*?)\s*\b([a-zäöüß]+?)en\s*[.!]?$/i); return m ? `${m[2]}e ${m[1]}`.trim() : t; },
+    zh: s => s.replace(/就|会|能|可以|将/g, ' ').replace(/\b(jiu|hui|neng|ke ?yi|jiang)\b/gi, ' ').replace(/\s+/g, ' ').trim(),
+    ja: s => s.replace(/でしょう|だろう|かもしれない|かも|のに/g, ' ').replace(/\b(deshou|deshō|darou|darō|kamoshirenai|kamo|noni)\b/gi, ' ').replace(/\s+/g, ' ').trim(),
+  };
+  // the what-if said right for one foe: «Si {mimo} saltara, golpearía al rojo» (the battle's own clause, its verb turned)
+  function ifModel(L, verb, f, ifVerb, d) {
+    const lg = L.code, x = _ && _.flow, name = (x && x.G && x.G.name) || 'Mimo';
+    const nm = lg === 'zh' ? (name === 'Mimo' ? '[米莫|Mǐ mò]' : name) : lg === 'ja' ? (name === 'Mimo' ? 'ミモ' : name) : name;
+    const V = L.verbs[verb] || L.verbs.hit, IV = L.verbs[ifVerb] || L.verbs.jump || V;
+    let s; try { s = f ? _.P.sayClause(L, L.verbs[verb] ? verb : 'hit', f, d || {}) : V.show; } catch (e) { s = V.show; }
+    const lem = w => { try { const e = (DICT.find(w) || []).find(z => z.pos === 'v'); return e ? e.id : null; } catch (e) { return null; } };
+    const inf = (id, fo) => { try { return id ? DICT.inflect(id, fo) || null : null; } catch (e) { return null; } };
+    if (lg === 'es' || lg === 'pt') {
+      const iv = inf(lem(IV.show), { tense: 'impf', mood: 'subj', person: 3, number: 's' }) || IV.show;
+      const cv = inf(lem(V.show), { tense: 'cond', mood: 'ind', person: 3, number: 's' }) || V.show;
+      return `${lg === 'es' ? 'Si' : 'Se'} ${nm} ${iv}, ${s.replace(V.show, cv)}.`;
+    }
+    if (lg === 'de') {
+      const vi = (lem(V.show) || '').replace(/^de:/, '') || V.show + 'en', ii = (lem(IV.show) || '').replace(/^de:/, '') || IV.show + 'en';
+      const obj = s.replace(new RegExp('^' + V.show + '\\s*'), '');
+      return `Wenn ${nm} ${ii} würde, würde ${nm} ${obj ? obj + ' ' : ''}${vi}.`;
+    }
+    if (lg === 'zh') return `[要是|yào shi] ${nm} ${IV.show} ， [就|jiù] [会|huì] ${s} 。`;
+    if (lg === 'ja') {
+      const dict = ((V.cj || []).find(z => z[1] === 'dict' && z[0].slice(0, 4) === V.show.slice(0, 4)) || [])[0];
+      return `もし ${nm} が ${IV.show.replace(/て$/, 'た').replace(/で$/, 'だ')}ら 、 ${dict ? s.replace(V.show, dict) : s} でしょう 。`;
+    }
+    return s;
+  }
+  // a what-if as the battle's command: its second half (or, failing that, its verbs, the one {mimo} picks), graded, said right
+  function ifOutcome(self, parse0, ctx, w, lg, text) {
+    const sk = Object.assign({}, ctx, { tbSkip: true }), text0 = (IF_CMD[lg] || (s => s))(String(w.rest || '')).trim();
+    let r = text0 ? parse0.call(self, text0, sk) : null;
+    if (!(r && r.ok && r.kind === 'command' && r.clauses && r.clauses.length)) r = compose(self, parse0, ctx, verbsIn(lg === 'es' ? text0 : w.rest, lg), null);
+    if (!(r && r.ok && r.kind === 'command' && r.clauses && r.clauses.length)) return null;
+    const H0 = _.tac.h, x = _.flow, c0 = r.clauses[0];
+    if (lg === 'ja') for (const c of r.clauses) c.errors = c.errors.filter(e => e.kind !== 'teForm');     // (〜でしょう takes the plain form: «打つ»)
+    if (w.mood === 'B') H0.err(c0.errors, 'mhReal'); else if (w.main === 'B') H0.err(c0.errors, 'mhMain');
+    for (const c of r.clauses) c.mhIf = true;
+    r.errors = r.clauses.flatMap(c => c.errors); r.fixes = r.clauses.flatMap(c => c.fixes);
+    r.recast = r.errors.length > 0 || r.fixes.length > 0;
+    let canon = null;
+    try {
+      const ifp = String(w.ifPart || '').replace(/もし|\bmoshi\b/gi, ' ');          // (rōmaji «moshi» holds «oshi», push)
+      const f = c0.target, d = f ? x.descOpts(x.uniqueDesc(f) || [f.color]) : {}, iv = (verbsIn(ifp, lg)[0] || 'v.jump').slice(2); canon = ifModel(ctx.L, c0.verb, f, iv, d);
+    } catch (e) { canon = null; }
+    return Object.assign(r, { raw: text, mhIf: w, canon: canon || String(text).trim(), previewHtml: '<b>💭 Imagine it!</b>' });
+  }
+  // the tips: the rung named in each language's own forms (English, the language in «»)
+  const IF_TIPS = {
+    es: { intro: 'Tomorrow’s marsh listens to what-ifs: «si» + the imperfect subjunctive, then the conditional. «Si {mimo} saltara, golpearía al rojo» lands now, ×2. Plans still work too.',
+      mhReal: 'A real if, as if it could happen any day: imagine it instead, «si» + the imperfect subjunctive: «si saltara…».', mhMain: 'The «si» half is right! The other half says what WOULD happen, the conditional: «…golpearía».',
+      condsi: 'Never «-ría» right after «si»: «si {mimo} saltara…», then «…golpearía».', slipR: 'Real-if slip (si + the imperfect subjunctive)', slipM: 'Would-slip (then the conditional)', frame: 'Si {mimo} saltara, golpearía ___' },
+    pt: { intro: 'Tomorrow’s marsh listens to what-ifs: «se» + the imperfect subjunctive, then the futuro do pretérito. «Se {mimo} pulasse, bateria no vermelho» lands now, ×2. Plans still work too.',
+      mhReal: 'A real if: imagine it instead, «se» + the imperfect subjunctive: «se pulasse…».', mhMain: 'The «se» half is right! The other half says what WOULD happen, the futuro do pretérito: «…bateria».',
+      condsi: 'Never «-ria» right after «se»: «se {mimo} pulasse…», then «…bateria».', slipR: 'Real-if slip (se + the imperfect subjunctive)', slipM: 'Would-slip (then the futuro do pretérito)', frame: 'Se {mimo} pulasse, bateria ___' },
+    de: { intro: 'Tomorrow’s marsh listens to what-ifs: «wenn» + Konjunktiv II, then «würde». «Wenn {mimo} springen würde, würde {mimo} den Roten schlagen» lands now, ×2. Plans still work too.',
+      mhReal: 'A real «wenn», as if it could happen any day: imagine it instead, with Konjunktiv II: «wenn … springen würde».', mhMain: 'The «wenn» half is right! The other half says what WOULD happen: «… würde … schlagen».',
+      condsi: 'In the «wenn» part, not «wird»: «wenn {mimo} springen würde…», then «… würde {mimo} … schlagen».', slipR: 'Real-wenn slip (Konjunktiv II)', slipM: 'Würde-slip (Konjunktiv II)', frame: 'Wenn {mimo} springen würde, würde {mimo} ___ schlagen' },
+    zh: { intro: 'Tomorrow’s marsh listens to what-ifs: 要是…，就会… (yào shi…jiù huì…). «要是{mimo}跳，就会打红色的» lands now, ×2. Plans still work too.',
+      mhReal: 'Imagine it: 要是…，就会…: «要是…跳，就会打…».', mhMain: 'The 要是 half is right! The other half says what WOULD happen, with 会: «…就会打…».',
+      condsi: '了 says it already happened. Imagine it: «要是…，就会…».', slipR: '要是 slip', slipM: '就会 slip', frame: '[要是|yào shi] {mimo} [跳|tiào] ， [就|jiù] [会|huì] [打|dǎ] ___' },
+    ja: { intro: 'Tomorrow’s marsh listens to what-ifs: もし…たら、…でしょう (moshi…tara, …deshō). «もし{mimo}が跳んだら、赤いのを打つでしょう» lands now, ×2. Plans still work too.',
+      mhReal: 'Imagine it: もし…たら、…でしょう: «もし…跳んだら、…打つでしょう».', mhMain: 'The もし half is right! The other half says what WOULD happen, with でしょう: «…打つでしょう».',
+      condsi: 'That sounds like it already happened. Imagine it: «もし…たら、…でしょう».', slipR: 'もし…たら slip', slipM: 'でしょう slip', frame: 'もし {mimo} が [跳|と]んだら 、 ___ を [打|う]つ でしょう' },
+  };
+  const ifName = lg => { const x = _ && _.flow, n = (x && x.G && x.G.name) || 'Mimo'; return lg === 'zh' ? (n === 'Mimo' ? '米莫' : n) : lg === 'ja' ? (n === 'Mimo' ? 'ミモ' : n) : n; };
+  const ifTip = (k, lg) => { const T = IF_TIPS[lg] || IF_TIPS.es, s = String(T[k] || IF_TIPS.es[k] || '').replace(/\{mimo\}/g, ifName(lg)); return Q() && Q().cjRun ? Q().cjRun(s, lg) : s; };
+  // a what-if lands: a thought over the one it's imagined on, a chime (the gargoyle's), then the move
+  async function imagineRun(c) {
+    const x = _.flow, f = c.target;
+    try { if (f && f.alive) { _.tac.h.pop(f, '💭', { color: '#cfe3ff', size: 36, rise: 0.4, life: 1.0 }); x.ST.ring(f, '#cfe3ff', 1.5); } } catch (e) { /* */ }
+    try { Sound.play('chime'); } catch (e) { /* */ }
+    await x.wait(0.35);
+  }
+  // the first turn: the rung box, a frame and the tip say the what-if (after timebattle.js's own, which they replace)
+  async function ifIntro() {
+    if (!ifWorld()) return;
+    const x = _.flow, G = x.G; if (G.turn !== 1 || G.mhIfIntro) return;
+    G.mhIfIntro = true;
+    const L = G.L, lg = L.code, plain = s => (_.tac.h.plain ? _.tac.h.plain(s) : s), f = x.targetable().find(k => !k.shy) || null;
+    const main = ['hit', 'push', 'jump'].find(v => x.knows('v.' + v)) || 'hit', iv = main !== 'jump' && x.knows('v.jump') ? 'jump' : ['push', 'hit', 'blow'].find(v => v !== main && x.knows('v.' + v)) || 'jump';
+    const m = ifModel(L, main, f, iv, f ? x.descOpts(x.uniqueDesc(f) || [f.color]) : {});
+    x.UI.rung(`The Gray Marsh tomorrow · imagine it (a what-if lands ×2; plans work too): <b>«${x.UI.esc(plain(m))}»</b>`);
+    try { G.frames.unshift({ text: String((IF_TIPS[lg] || IF_TIPS.es).frame).replace(/\{mimo\}/g, lg === 'zh' || lg === 'ja' ? (G.name === 'Mimo' ? (lg === 'zh' ? '[米莫|Mǐ mò]' : 'ミモ') : G.name) : G.name), pat: 'whatif', uses: 3 }); x.renderFrames(); } catch (e) { /* (no frames here) */ }
+    x.UI.tip(x.UI.esc(ifTip('intro', lg)).replace(/«([^»]+)»/g, (m0, w0) => `<b class="tl">«${w0}»</b>`));
+    if (!G.mhIfDemo) { G.mhIfDemo = true; x.say(x.A.mimo, m, { cls: 'mimo', en: 'If I jumped, I’d hit it!', dur: 3.4, demo: true }); await x.wait(1.6); }
+  }
+  function hookIf() {
+    if (!_ || !_.P || !_.tac || !_.tac.judgeHooks || _.P.mhIfHooked) return;
+    _.P.mhIfHooked = true;
+    for (const [l, T] of Object.entries(IF_TIPS)) {
+      const L = _.LANGS && _.LANGS[l]; if (!L) continue;
+      L.slip = Object.assign({}, L.slip || {}, { mhReal: T.slipR, mhMain: T.slipM });
+      L.why = Object.assign({}, L.why || {}, { mhReal: T.mhReal, mhMain: T.mhMain });
+    }
+    const P0 = _.P.parse;
+    _.P.parse = function (text, ctx) {
+      if (ctx && ctx.L && ctx.foes && !ctx.tbSkip && ifWorld()) {
+        const lg = ctx.L.code; let w = null;
+        try { w = ifAct(String(text), lg); } catch (e) { w = null; }
+        if (w && w.mood === 'X') return { ok: false, raw: text, reason: 'mh:condsi' };
+        if (w) { let r = null; try { r = ifOutcome(this, P0, ctx, w, lg, text); } catch (e) { console.error('[mhboss] what-if', e); } if (r) return r; }
+      }
+      return P0.call(this, text, ctx);
+    };
+    _.tac.judgeHooks.push(r => {
+      if (!r || !r.mhIf || !r.clauses) return;
+      for (const c of r.clauses) {
+        c.tacMult = (c.tacMult || 1) * 2; c.tacSub = 'IMAGINE ×2';
+        const prev = c.tacRun; c.tacRun = async q => { await imagineRun(q); await (prev ? prev(q) : _.flow.MOVES[q.verb](q)); };
+      }
+    });
+    _.tac.explainHooks.push(r => {
+      if (!r || r.reason !== 'mh:condsi') return false;
+      const x = _.flow;
+      try { x.setMood(x.A.mimo, 'confused', 1.4); } catch (e) { /* */ }
+      x.UI.hint(ifTip('condsi', x.G.L.code), true);          // (UI.hint escapes it itself)
+      return true;
+    });
+    _.tac.turnHooks.push(ifIntro);
+  }
+  try { hookIf(); } catch (e) { console.error('[mhboss] what-if hooks', e); }
   try { hook(); } catch (e) { console.error('[mhboss] hooks', e); }
   // (the other languages' readers are added by marsh_text_pt.js … _ja.js: MHBOSS.addLang(lang, { storyOut, ifOut, matWords })
   function addLang(l, o = {}) { if (o.story) STORYOUT[l] = o.story; if (o.ifout) IFOUT[l] = o.ifout; if (o.mats) MAT_WORDS[l] = o.mats; if (o.storyFn) STORY_FN[l] = o.storyFn; if (o.ifFn) IF_FN[l] = o.ifFn; }
@@ -612,6 +778,6 @@ const MHBOSS = (() => {
   const storyOutAny = (text, lg) => (STORY_FN[lg] ? STORY_FN[lg](text) : storyOut(text, lg));
   const ifOutAny = (text, lg) => (IF_FN[lg] ? IF_FN[lg](text) : ifOut(text, lg));
   return { init: () => { try { hook(); } catch (e) { console.error('[mhboss] hooks', e); } }, hook, fightMoth, fightGargoyle, letter, mothModel, gargModel, PMO, PGA, answerAsk, wave, rung, grayable, anchorsOf, lineOf, LETTERS, isTense,
-    storyOut: storyOutAny, ifOut: ifOutAny, addLang, MATS, MAT_WORDS, STORYOUT, IFOUT, IFX, verbsIn,
+    storyOut: storyOutAny, ifOut: ifOutAny, addLang, MATS, MAT_WORDS, STORYOUT, IFOUT, IFX, verbsIn, ifAct, ifModel, ifWorld, IF_TIPS,
     get FXL() { return FXL; }, get FXG() { return FXG; } };
 })();

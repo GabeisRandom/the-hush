@@ -298,7 +298,9 @@ ducir|zc pr:duj`;
       if (ex.pl) e.pl = ex.pl;
       if (raw.tags.includes('work') && (e.per || code === 'm~' || code === 'mf')) e.work = true;
       if ((raw.tags.includes('place') || raw.tags.includes('town')) && !e.transport) e.place = true;
-      if (raw.tags.includes('family') || raw.tags.includes('people')) e.per = e.per || code === 'm~' || code === 'mf' || raw.tags.includes('family');
+      // (a person, for the personal «a»: flagged |per, m~ / mf in these lists, or a group of people (gente, familia); a family list's
+      // other nouns aren't people: «conoce el nombre», «pregunto la edad»)
+      if (raw.tags.includes('family') || raw.tags.includes('people')) e.per = e.per || code === 'm~' || code === 'mf' || (raw.tags.includes('family') && !!e.coll);
     } else if (e.pos === 'v') {
       e.cls = cls; if (ex.pp) e.pp = ex.pp;
       if (/se$/.test(e.lemma) && /(ar|er|ir|ír)$/.test(e.lemma.slice(0, -2))) { e.refl = true; e.base = e.lemma.slice(0, -2); }
@@ -368,7 +370,42 @@ ducir|zc pr:duj`;
     if (!P.reflOf) { P.reflOf = new Map(); for (const e of P.entries.values()) if (e.refl) P.reflOf.set(e.base, e); }
     const more = [];
     for (const c of out) { const re = P.reflOf.get(c.e.lemma); if (re) more.push(Object.assign({}, c, { e: re })); }
-    return out.concat(more);
+    const all = out.concat(more);
+    return all.length ? all : (dims(tk, P) || all);
+  }
+  // diminutives (DX-B2): -ito / -ita / -cito / -ecito (+ s) on a noun or adjective the list knows, for a word the index doesn't:
+  // casita, perrito, amiguito (g → gu), chiquito (c → qu), agüita, cafecito, mujercita, jovencito, florecita, lucecita (z → c),
+  // papelito, arbolito. A noun keeps its gender («el problemita»); an adjective takes the ending's. Never a capitalized word
+  // (a name: «Rosita», «Juanito»).
+  // (a game word, LEX's, keeps its own headword: «abriguito», «palita»)
+  function lexWord(P, k) {
+    if (typeof LEX === 'undefined' || !LEX.ids) return false;
+    const ids = LEX.ids();
+    if (!P._lexW || P._lexWN !== ids.length) {
+      P._lexW = new Set(); P._lexWN = ids.length;
+      for (const id of ids) { const it = LEX.item(id); if (!it || !it[P.lang]) continue; for (const w of [String(it[P.lang])].concat((it.alt && it.alt[P.lang]) || [])) { const c = String(w).replace(/[¡!¿?.,;:…"«»“”()]/g, '').trim(); if (c && c.indexOf(' ') < 0) P._lexW.add(key(c)); } }
+    }
+    return P._lexW.has(k);
+  }
+  function dims(tk, P) {
+    const raw = tk.t;
+    if (raw.length < 5 || raw[0] !== raw[0].toLowerCase()) return null;
+    const k = key(raw), m = /it([oa])(s?)$/.exec(k); if (!m || lexWord(P, k)) return null;
+    const stem = k.slice(0, m.index), g = m[1] === 'a' ? 'f' : 'm', n = m[2] ? 'p' : 's';
+    const bases = [], put = b => { if (b.length >= 3 && !bases.includes(b)) bases.push(b); };
+    const v = g === 'f' ? 'a' : 'o', st = stem.replace(/qu$/, 'c').replace(/gu$/, 'g');
+    put(st + v); put(stem + v);
+    if (/c$/.test(stem)) { const s2 = stem.slice(0, -1); put(s2); if (/e$/.test(s2)) { const s3 = s2.slice(0, -1); put(s3); if (/c$/.test(s3)) put(s3.slice(0, -1) + 'z'); } }
+    put(stem);
+    const res = [], seen = new Set();
+    for (const b of bases) for (const r of P.IX.get(b) || []) {
+      const e = r.e;
+      if ((e.pos !== 'n' && e.pos !== 'adj') || (e.auto && !(e.pos === 'n' && e.g)) || seen.has(e.id)) continue;
+      seen.add(e.id);
+      const gg = e.pos === 'n' && (e.g === 'm' || e.g === 'f') && !e.fem ? e.g : g;
+      res.push({ e, f: feat(gg + '.' + n), w: raw, exact: true, via: 'dim' });
+    }
+    return res.length ? res : null;
   }
 
   // ------------------------------------------------------------ scoring (which reading, in context)
@@ -420,6 +457,12 @@ ducir|zc pr:duj`;
     // fui / fue: ir before «a», ser before what something was
     if (e.lemma === 'ir' && (f.tense === 'past' || f.mood === 'subj') && nx.some(n => /^(a|al)$/.test(key(n.w)))) s += 1;
     if (e.lemma === 'ser' && (f.tense === 'past' || f.mood === 'subj') && nx.some(n => n.e.pos === 'adj' || n.e.det || n.e.art || key(n.w) === 'de')) s += 0.6;
+    // (DX-B2) never a finite verb right after ser / estar: «el examen fue duro» (not durar), «la ropa está seca» (not secar),
+    // «el cuarto está limpio» (not limpiar)
+    if (e.pos === 'v' && LATIN.finite(f) && pv && pv.e.copula && LATIN.finite(pv.f)) s -= 2;
+    // (DX-B2) a clitic never comes right after a preposition: «en la tarde», «de la casa» are the article and a noun (not
+    // «la» + tardar / casar)
+    if (e.clitic && !e.art && pv && pv.e.pos === 'prep' && !pv.e.art) s -= 3;
     return s;
   }
 
@@ -674,6 +717,7 @@ ducir|zc pr:duj`;
       return s;
     }
     if (low(c.w) === low(e.lemma)) return '';
+    if (c.via === 'dim') return 'diminutive' + (f.number === 'p' ? ', plural' : '');
     if (e.pos === 'n') return e.fem && f.gender === 'f' ? 'feminine' + (f.number === 'p' ? ' plural' : '') : f.number === 'p' ? 'plural' : '';
     if (e.pos === 'adj' || e.pos === 'det' || e.pos === 'pron') return f.apoc ? 'short form, before a noun' : gnText(f);
     return '';
@@ -682,7 +726,8 @@ ducir|zc pr:duj`;
     const e = c.e, f = c.f || {};
     if (e.pos === 'v' && (f.mood || f.form)) return EN.verb(e.en, f);
     const m = /^([^/,;()]+)\/([^,;()]+)(.*)$/.exec(e.en || '');
-    const en = m ? (f.gender === 'f' ? m[2] : m[1]) + m[3] : e.en;
+    let en = m ? (f.gender === 'f' ? m[2] : m[1]) + m[3] : e.en;
+    if (c.via === 'dim' && e.pos === 'n') en = 'little ' + en;
     if (e.pos === 'n' && f.number === 'p' && !e.plOnly) return EN.plural(en);
     return en;
   }
@@ -3057,6 +3102,1205 @@ inmenso|a|immense, huge
 distinto|a|different
 quieto|a|still, not moving
 `);
+  // DX-B2 (2026-11-26, the B2 dictionary helper): about 1,000 B2 words by topic, plus the B1 words that were missing, so the
+  // level meter (dict.js WORD_STEPS) can really reach B2. Latin American Spanish.
+  LISTS.push(`
+// work and careers
+@4 work
+empleo|m|employment, job
+desempleo|m|unemployment|-
+huelga|f|strike (from work)
+sindicato|m|labor union
+jornada|f|working day, shift (jornada laboral)
+horas extras|phrase|overtime
+ascenso|m|promotion; climb
+aumento|m|raise, increase
+vacante|f|vacancy, job opening
+solicitud|f|application, request
+formación|f|training, education
+capacitación|f|training
+práctica|f|practice; internship (prácticas)
+pasantía|f|internship
+beca|f|scholarship, grant
+oficio|m|trade, occupation
+profesión|f|profession
+jubilación|f|retirement
+pensión|f|pension; guesthouse
+despido|m|dismissal, layoff|-
+renuncia|f|resignation
+plazo|m|deadline; period, term
+fecha límite|phrase|deadline
+informe|m|report
+presupuesto|m|budget; estimate
+rendimiento|m|performance, yield
+productividad|f|productivity
+eficiencia|f|efficiency
+liderazgo|m|leadership
+negociación|f|negotiation
+teletrabajo|m|remote work
+sede|f|headquarters
+sucursal|f|branch (of a company)
+comercio|m|trade, commerce; store
+mercado laboral|phrase|job market
+competencia|f|competition; skill
+requisito|m|requirement
+tiempo completo|phrase|full-time
+medio tiempo|phrase|part-time
+@4 work,people
+gerente|mf|manager|per
+director|m~|director, manager; principal|per
+supervisor|m~|supervisor|per
+empresario|m~|businessman/businesswoman|per
+emprendedor|m~|entrepreneur|per
+trabajador#n|m~|worker|per
+técnico|m~|technician|per
+mecánico|m~|mechanic|per
+cirujano|m~|surgeon|per
+psicólogo|m~|psychologist|per
+especialista|mf|specialist|per
+investigador|m~|researcher|per
+científico|m~|scientist|per
+arquitecto|m~|architect|per
+fotógrafo|m~|photographer|per
+reportero|m~|reporter|per
+corresponsal|mf|correspondent|per
+actor|m~|actor/actress|per f:actriz
+escultor|m~|sculptor|per
+compositor|m~|composer|per
+plomero|m~|plumber|per
+electricista|mf|electrician|per
+albañil|mf|bricklayer, builder|per
+juez|m~|judge|per f:jueza
+alcalde|m~|mayor|per f:alcaldesa
+@4 people
+candidato|m~|candidate|per
+aspirante|mf|applicant|per
+colega|mf|colleague|per
+becario|m~|intern; scholarship student|per
+encargado|m~|person in charge, manager|per
+@4 work
+laboral|a=|work, labor (vida laboral: working life)
+empresarial|a=|business, corporate
+profesional|a=|professional
+eficiente|a|efficient|+
+eficaz|a=|effective|+
+competitivo|a|competitive
+exigente|a|demanding
+calificado|a|qualified, skilled
+desempleado|a|unemployed
+jubilado|a|retired
+solicitar|v|apply for, request
+postularse|v|apply (for a job)
+capacitar|v|train
+ascender|v.ie|promote; go up
+emplear|v|employ; use
+desempeñar|v|carry out, fill (a role)
+ejercer|v|practice (a profession); exercise
+cobrar|v|charge; get paid
+negociar|v|negotiate
+competir|v.i|compete
+exigir|v|demand, require
+requerir|v.iei|require
+encargarse|v|be in charge of, take care of
+ganarse la vida|phrase|earn a living
+// money and shopping
+@4 money,shop
+ahorros|mpl|savings
+inversión|f|investment
+ganancia|f|profit, gain
+pérdida|f|loss
+beneficio|m|benefit; profit
+ingresos|mpl|income
+gastos|mpl|expenses, costs
+hipoteca|f|mortgage
+interés|m|interest
+tasa|f|rate; fee
+cuota|f|fee, installment
+tarifa|f|rate, fare
+factura|f|bill, invoice
+cuenta bancaria|phrase|bank account
+tarjeta de crédito|phrase|credit card
+efectivo|m|cash (en efectivo: in cash)
+cajero automático|phrase|ATM
+transferencia|f|transfer
+consumidor|m~|consumer|per
+consumo|m|consumption
+descuento|m|discount
+rebaja|f|price cut (las rebajas: the sales)
+garantía|f|guarantee, warranty
+devolución|f|return, refund
+reembolso|m|refund
+reclamación|f|complaint, claim
+marca|f|brand; mark
+calidad|f|quality
+cantidad|f|amount, quantity
+producto|m|product
+servicio|m|service
+envío|m|shipping, delivery
+pedido|m|order (something you ordered)
+entrega|f|delivery
+a domicilio|phrase|delivered to your home
+centro comercial|phrase|shopping mall
+probador|m|fitting room
+fila|f|line, row (hacer fila: wait in line)
+costoso|a|costly, expensive
+gratuito|a|free (of charge)
+financiero|a|financial
+bancario|a|bank, banking
+comercial|a=|commercial, shopping
+financiar|v|finance, fund
+regatear|v|haggle
+malgastar|v|waste (money, time)
+desperdiciar|v|waste
+consumir|v|consume, use
+entregar|v|deliver, hand in
+pedir prestado|phrase|borrow
+`);
+  LISTS.push(`
+// health, the body and medicine
+@4 health
+síntoma|m|symptom
+diagnóstico|m|diagnosis
+terapia|f|therapy
+cirugía|f|surgery
+operación|f|operation
+clínica|f|clinic|place
+urgencias|fpl|emergency room|place
+ambulancia|f|ambulance
+dosis|f|dose
+jarabe|m|syrup (medicine)
+antibiótico|m|antibiotic
+vitamina|f|vitamin
+alergia|f|allergy
+infección|f|infection
+virus|m|virus
+bacteria|f|bacterium, germ
+epidemia|f|epidemic
+pandemia|f|pandemic
+contagio|m|infection, contagion
+lesión|f|injury
+fractura|f|fracture
+moretón|m|bruise
+quemadura|f|burn
+mareo|m|dizziness
+náuseas|fpl|nausea
+presión|f|pressure (presión arterial: blood pressure)
+insomnio|m|insomnia
+ansiedad|f|anxiety|-
+depresión|f|depression|-
+salud mental|phrase|mental health
+nutrición|f|nutrition
+alimentación|f|diet, eating
+proteína|f|protein
+grasa|f|fat
+caloría|f|calorie
+obesidad|f|obesity
+peso|m|weight
+embarazo|m|pregnancy
+discapacidad|f|disability
+prevención|f|prevention
+chequeo|m|checkup
+análisis|m|analysis; (medical) test
+radiografía|f|X-ray
+inyección|f|injection, shot
+recuperación|f|recovery
+fatiga|f|fatigue
+sudor|m|sweat
+picazón|f|itch
+picadura|f|bite, sting (insect)
+seguro médico|phrase|health insurance
+primeros auxilios|phrase|first aid
+@4 health,people
+paciente#n|mf|patient (in a hospital)|per
+@4 health,body
+hígado|m|liver
+riñón|m|kidney
+cadera|f|hip
+muslo|m|thigh
+pecho|m|chest
+cintura|f|waist
+nervio|m|nerve
+@4 health
+alérgico|a|allergic
+contagioso|a|contagious
+mareado|a|dizzy|st
+embarazada|a|pregnant|st
+sedentario|a|sedentary
+leve|a|mild, slight
+crónico|a|chronic
+agudo|a|sharp; acute; high-pitched
+físico|a|physical
+mental|a=|mental
+emocional|a=|emotional
+médico#adj|a|medical
+curar|v|cure, heal
+curarse|v|get better, recover
+recuperarse|v|recover
+lastimar|v|hurt
+lastimarse|v|hurt oneself
+herir|v.iei|wound, hurt
+torcerse|v.ue|twist, sprain
+desmayarse|v|faint
+marearse|v|get dizzy
+vacunar|v|vaccinate
+recetar|v|prescribe
+operar|v|operate (on)
+contagiar|v|infect, pass on (an illness)
+pesar|v|weigh
+// the environment, nature and climate
+@4 nature,weather
+calentamiento global|phrase|global warming
+efecto invernadero|phrase|greenhouse effect
+emisión|f|emission
+carbono|m|carbon
+dióxido de carbono|phrase|carbon dioxide
+combustible|m|fuel
+petróleo|m|oil, petroleum
+gasolina|f|gasoline
+gas|m|gas
+energía solar|phrase|solar energy
+panel solar|phrase|solar panel
+residuo|m|waste (residuos)
+plástico|m|plastic
+cartón|m|cardboard
+envase|m|container, packaging
+desperdicio|m|waste
+sostenibilidad|f|sustainability
+ecosistema|m|ecosystem
+biodiversidad|f|biodiversity
+especie|f|species
+extinción|f|extinction
+en peligro de extinción|phrase|endangered
+hábitat|m|habitat|pl:hábitats
+fauna|f|wildlife, fauna
+flora|f|plant life, flora
+deforestación|f|deforestation
+incendio|m|fire (a building on fire, a wildfire)
+incendio forestal|phrase|forest fire
+inundación|f|flood
+desastre|m|disaster|-
+catástrofe|f|catastrophe|-
+desastre natural|phrase|natural disaster
+atmósfera|f|atmosphere
+capa de ozono|phrase|ozone layer
+océano|m|ocean|place
+polo|m|pole (el Polo Norte); polo shirt
+nivel|m|level
+nivel del mar|phrase|sea level
+agua potable|phrase|drinking water
+escasez|f|shortage, scarcity
+huella de carbono|phrase|carbon footprint
+transporte público|phrase|public transportation
+campaña|f|campaign
+conciencia|f|awareness; conscience
+conservación|f|conservation
+daño|m|damage, harm
+amenaza|f|threat|-
+cultivo|m|crop; growing
+agricultura|f|agriculture
+ganadería|f|livestock farming
+pesticida|m|pesticide
+llanura|f|plain|place
+meseta|f|plateau|place
+cordillera|f|mountain range|place
+arrecife|m|reef|place
+@4 people
+ecologista|mf|environmentalist|per
+activista|mf|activist|per
+habitante|mf|inhabitant|per
+@4 nature,weather
+renovable|a|renewable
+eólico|a|wind (energía eólica: wind power)
+sostenible|a|sustainable|+
+escaso|a|scarce
+abundante|a|abundant
+dañino|a|harmful
+tóxico|a|toxic
+puro|a|pure
+fértil|a=|fertile
+árido|a|arid, dry
+tropical|a=|tropical
+salvaje|a|wild
+templado|a|mild, temperate
+lluvioso|a|rainy
+soleado|a|sunny
+nublado|a|cloudy
+orgánico|a|organic
+agrícola|a=|agricultural
+conservar|v|preserve, keep
+preservar|v|preserve
+dañar|v|damage, harm
+amenazar|v|threaten
+agotar|v|use up, exhaust
+agotarse|v|run out, sell out
+extinguirse|v|die out; go out (a fire)
+habitar|v|inhabit, live in
+reutilizar|v|reuse
+concientizar|v|raise awareness
+derretirse|v.i|melt
+`);
+  LISTS.push(`
+// technology and the internet
+@3 tech
+tecnología|f|technology
+información|f|information
+máquina|f|machine
+@4 tech
+dispositivo|m|device
+aparato|m|device, appliance
+software|m|software|pl:software
+archivo|m|file; archive
+carpeta|f|folder
+documento|m|document
+perfil|m|profile
+correo electrónico|phrase|email
+red social|phrase|social network
+redes sociales|phrase|social media
+sitio web|phrase|website
+navegador|m|browser
+buscador|m|search engine
+enlace|m|link
+descarga|f|download
+publicación|f|publication; post
+comentario|m|comment
+conexión|f|connection
+en línea|phrase|online
+wifi|m|wifi
+dato|m|piece of information, fact (los datos: data)
+base de datos|phrase|database
+inteligencia|f|intelligence
+inteligencia artificial|phrase|artificial intelligence
+robot|m|robot|pl:robots
+algoritmo|m|algorithm
+código|m|code
+programación|f|programming
+actualización|f|update
+impresora|f|printer
+tableta|f|tablet
+portátil|m|laptop
+almacenamiento|m|storage
+privacidad|f|privacy
+acoso|m|harassment, bullying|-
+ciberacoso|m|cyberbullying|-
+noticias falsas|phrase|fake news
+videollamada|f|video call
+mensaje de texto|phrase|text message
+tecla|f|key (on a keyboard)
+clic|m|click (hacer clic: click)|pl:clics
+innovación|f|innovation
+avance|m|advance, breakthrough
+electricidad|f|electricity
+tecnológico|a|technological
+digital|a=|digital
+virtual|a=|virtual
+electrónico|a|electronic
+eléctrico|a|electric
+automático|a|automatic
+innovador|a|innovative|+
+inalámbrico|a|wireless
+@4 tech,people
+usuario|m~|user|per
+seguidor|m~|follower|per
+@4 tech
+descargar|v|download; unload
+publicar|v|publish, post
+suscribirse|v|subscribe|pp:suscrito
+conectarse|v|connect, go online
+desconectarse|v|disconnect, go offline
+programar|v|program; schedule
+instalar|v|install
+actualizar|v|update
+reiniciar|v|restart
+borrar|v|delete, erase
+imprimir|v|print|pp:impreso
+escanear|v|scan
+chatear|v|chat (online)
+navegar|v|sail; browse (the internet)
+// news and media
+@4 media
+prensa|f|the press
+medios de comunicación|phrase|the media
+titular|m|headline
+reportaje|m|report, feature (story)
+redacción|f|newsroom; writing
+audiencia|f|audience
+censura|f|censorship|-
+libertad de expresión|phrase|freedom of speech
+opinión pública|phrase|public opinion
+encuesta|f|survey, poll
+estadística|f|statistic, statistics
+polémica|f|controversy
+escándalo|m|scandal|-
+chisme|m|gossip
+acontecimiento|m|event
+suceso|m|event, incident
+evento|m|event
+crónica|f|chronicle, report
+propaganda|f|propaganda; advertising
+documental|m|documentary
+episodio|m|episode
+estreno|m|premiere, release
+crítica|f|criticism; review
+polémico|a|controversial
+subjetivo|a|subjective
+imparcial|a=|impartial
+confiable|a|reliable, trustworthy|+
+crítico|a|critical
+entrevistar|v|interview
+redactar|v|write, draft
+difundir|v|spread, broadcast
+transmitir|v|broadcast; pass on
+emitir|v|broadcast; issue
+@4 media,people
+espectador|m~|viewer, spectator|per
+protagonista|mf|main character, protagonist|per
+`);
+  LISTS.push(`
+// B1 words that were missing (some of them the game already used, read until now as bare quest words)
+@2
+madera|f|wood
+botón|m|button
+gratis|a=|free (of charge)
+@3
+acción|f|action; share (of a company)
+actividad|f|activity
+atención|f|attention
+caso|m|case (en caso de: in case of)
+control|m|control; checkpoint
+costo|m|cost
+estado|m|state; condition
+imagen|f|image, picture
+mayoría|f|majority
+miembro|m|member|per
+modelo|m|model
+movimiento|m|movement
+objeto|m|object
+paso|m|step; pass (de paso: on the way)
+pena|f|sorrow; penalty (¡qué pena!: what a shame!)
+período|m|period|alt:periodo
+posición|f|position
+premio|m|prize, award|+
+resto|m|rest, remainder
+sitio|m|place, site
+tema|m|topic, subject, theme
+uso|m|use
+zona|f|zone, area
+área|f*|area
+situación|f|situation
+transporte|m|transportation
+curso|m|course; school year
+espacio|m|space; room
+sistema|m|system
+proceso|m|process
+capital|f|capital (city)
+gusto|m|taste; pleasure (con gusto: gladly)
+sonrisa|f|smile|+
+broma|f|joke
+promesa|f|promise
+paciencia|f|patience|+
+soledad|f|loneliness, solitude
+señal|f|sign, signal
+alarma|f|alarm
+pronóstico|m|forecast
+concurso|m|contest
+compañía|f|company
+posibilidad|f|possibility
+imaginación|f|imagination
+altura|f|height
+cadena|f|chain; (TV) channel
+vidrio|m|glass (the material)
+algodón|m|cotton
+bandera|f|flag
+nido|m|nest
+gota|f|drop
+agujero|m|hole
+a partir de|phrase|starting from
+en caso de|phrase|in case of
+ser humano|phrase|human being
+@3 people
+presidente|m~|president|per f:presidenta
+@3
+completo|a|complete, full
+directo|a|direct
+humano|a|human
+sencillo|a|simple, plain
+fino|a|thin, fine
+cuadrado|a|square
+vacío|a|empty
+ideal|a=|ideal
+elegante|a|elegant
+total|a=|total
+positivo|a|positive|+
+negativo|a|negative|-
+exacto|a|exact
+real|a=|real; royal
+general|a=|general
+suficiente|a|enough, sufficient
+cuidadoso|a|careful
+pálido|a|pale
+redondo|a|round
+cálido|a|warm
+grueso|a|thick
+blando|a|soft
+colorido|a|colorful
+maleducado|a|rude, bad-mannered|-
+mantener|v|maintain, keep
+obtener|v|obtain, get
+afectar|v|affect
+asistir|v|attend; assist
+confirmar|v|confirm
+continuar|v.ú|continue
+durar|v|last
+echar|v|throw; pour; throw out
+incluir|v.y|include
+revisar|v|check, review
+separar|v|separate
+tardar|v|take (time); be late
+utilizar|v|use
+acabar|v|finish, end up
+firmar|v|sign
+sufrir|v|suffer
+despertar|v.ie|wake (someone) up
+disculparse|v|apologize
+robar|v|steal, rob
+desear|v|wish, desire
+guiar|v.í|guide
+barrer|v|sweep
+adornar|v|decorate
+abandonar|v|abandon, leave
+enterrar|v.ie|bury
+hundirse|v|sink
+secar|v|dry
+secarse|v|dry off, dry up
+congelarse|v|freeze
+pegar|v|stick, glue; hit
+aplaudir|v|applaud, clap
+@4
+minoría|f|minority
+multitud|f|crowd
+búsqueda|f|search
+superficie|f|surface
+profundidad|f|depth
+corriente|f|current; stream
+reflejo|m|reflection; reflex
+corona|f|crown
+trofeo|m|trophy
+grieta|f|crack
+ruina|f|ruin
+horizonte|m|horizon
+firme|a|firm, steady
+terco|a|stubborn
+magnífico|a|magnificent|+
+transparente|a|transparent
+hondo|a|deep
+hambriento|a|hungry, starving
+empinado|a|steep
+resbaladizo|a|slippery
+concurrido|a|busy, crowded
+polvoriento|a|dusty
+inmóvil|a=|still, motionless
+luminoso|a|bright, full of light
+interior|a=|interior, inside
+exterior|a=|exterior, outside; foreign
+superior|a=|upper; higher; superior
+inferior|a=|lower; inferior
+mensual|a=|monthly
+semanal|a=|weekly
+anual|a=|yearly, annual
+atender|v.ie|attend to, serve; answer (the phone)
+extender|v.ie|extend, spread
+colocar|v|place, put
+dirigir|v|direct, run, manage
+distinguir|v|distinguish
+eliminar|v|eliminate, remove
+formar|v|form, shape; train
+identificar|v|identify
+indicar|v|indicate, show
+ocupar|v|occupy, take up
+partir|v|leave; split
+pretender|v|intend, aim to (not «pretend»)
+realizar|v|carry out, do; fulfill
+relacionar|v|relate, connect
+representar|v|represent; perform
+temer|v|fear
+corresponder|v|correspond; be one’s turn
+bastar|v|be enough
+apuntar|v|note down; aim
+averiguar|v|find out
+poseer|v|own, possess
+reconstruir|v.y|rebuild
+florecer|v.zc|bloom, flourish
+brotar|v|sprout, spring up
+sanar|v|heal
+derrumbarse|v|collapse
+gotear|v|drip, leak
+deslizarse|v|slide, glide
+retroceder|v|move back, back down
+`);
+  LISTS.push(`
+// society and community (local government, rights, volunteering)
+@3 home
+hogar|m|home, household
+@4
+municipio|m|municipality, town
+alcaldía|f|city hall, mayor’s office|place
+ayuntamiento|m|city hall, town council|place
+ciudadanía|f|citizenship; the citizens
+derechos humanos|phrase|human rights
+deber#n|m|duty
+obligación|f|obligation
+voluntariado|m|volunteering, volunteer work
+organización|f|organization
+asociación|f|association
+fundación|f|foundation
+caridad|f|charity
+donación|f|donation
+solidaridad|f|solidarity|+
+discriminación|f|discrimination|-
+racismo|m|racism|-
+prejuicio|m|prejudice|-
+tolerancia|f|tolerance|+
+diversidad|f|diversity
+inclusión|f|inclusion
+inmigración|f|immigration
+integración|f|integration
+convivencia|f|living together, getting along
+vivienda|f|housing, home
+manifestación|f|demonstration, protest
+protesta|f|protest
+participación|f|participation
+voto|m|vote
+autoridad|f|authority
+institución|f|institution
+servicio público|phrase|public service
+calidad de vida|phrase|quality of life
+nivel de vida|phrase|standard of living
+infraestructura|f|infrastructure
+solidario|a|caring, supportive|+
+tolerante|a|tolerant|+
+municipal|a=|municipal, city
+comunitario|a|community
+donar|v|donate
+discriminar|v|discriminate
+emigrar|v|emigrate
+convivir|v|live together, get along
+protestar|v|protest; complain
+@4 people
+voluntario|m~|volunteer|per
+inmigrante|mf|immigrant|per
+refugiado|m~|refugee|per
+// everyday law (contracts, fines, permits)
+@4
+delincuencia|f|crime (in general)|-
+delito|m|crime, offense|-
+robo|m|robbery, theft|-
+denuncia|f|report (to the police), complaint
+multa|f|fine (to pay)
+permiso|m|permission; permit; leave
+licencia|f|license; leave
+licencia de conducir|phrase|driver’s license
+firma|f|signature
+juicio|m|trial; judgment
+tribunal|m|court
+demanda|f|lawsuit; demand
+castigo|m|punishment
+sanción|f|penalty, sanction
+norma|f|rule, standard
+reglamento|m|regulations
+trámite|m|procedure, paperwork
+formulario|m|form (to fill in)
+identificación|f|ID, identification
+residencia|f|residence; residency
+visa|f|visa
+seguro#n|m|insurance
+depósito|m|deposit; tank
+cláusula|f|clause
+estacionamiento|m|parking lot|place
+exceso de velocidad|phrase|speeding
+legal|a=|legal
+ilegal|a=|illegal|-
+culpable|a|guilty|-
+inocente|a|innocent
+obligatorio|a|compulsory, required
+denunciar|v|report (a crime), denounce
+multar|v|fine
+demandar|v|sue; demand
+acusar|v|accuse
+castigar|v|punish
+reclamar|v|claim, complain
+estacionar|v|park
+@4 people
+delincuente|mf|criminal, offender|per
+ladrón|m~|thief|per
+víctima|f|victim|per
+testigo|mf|witness|per
+inquilino|m~|tenant|per
+propietario|m~|owner, landlord|per
+// education and science
+@4 school
+enseñanza|f|teaching, education
+aprendizaje|m|learning
+primaria|f|elementary school (la primaria)
+secundaria|f|secondary school (la secundaria)
+bachillerato|m|high school (diploma)
+licenciatura|f|bachelor’s degree
+maestría|f|master’s degree
+doctorado|m|doctorate, PhD
+diploma|m|diploma
+facultad|f|school (of a university); ability
+campus|m|campus
+matrícula|f|enrollment; tuition fee
+apuntes|mpl|(class) notes
+resumen|m|summary
+ensayo|m|essay; rehearsal
+tesis|f|thesis
+calificación|f|grade; qualification
+promedio|m|average
+semestre|m|semester
+conferencia|f|lecture; conference
+debate|m|debate
+método|m|method
+teoría|f|theory
+experimento|m|experiment
+laboratorio|m|laboratory|place
+descubrimiento|m|discovery
+conclusión|f|conclusion
+evidencia|f|evidence
+fórmula|f|formula
+cálculo|m|calculation
+química|f|chemistry
+física|f|physics
+biología|f|biology
+filosofía|f|philosophy
+literatura|f|literature
+psicología|f|psychology
+informática|f|computer science
+ingeniería|f|engineering
+concepto|m|concept
+definición|f|definition
+término|m|term; end
+universo|m|universe
+galaxia|f|galaxy
+célula|f|cell (biology)
+evolución|f|evolution
+académico|a|academic
+escolar|a=|school (vida escolar: school life)
+universitario|a|university, college
+educativo|a|educational
+intelectual|a=|intellectual
+científico#adj|a|scientific
+inscribirse|v|enroll, sign up|pp:inscrito
+memorizar|v|memorize
+repasar|v|review, go over
+analizar|v|analyze
+concluir|v.y|conclude
+definir|v|define
+debatir|v|debate
+argumentar|v|argue (make a case)
+deducir|v|deduce
+@4 school,people
+tutor|m~|tutor|per
+astronauta|mf|astronaut|per
+`);
+  LISTS.push(`
+// arguing and explaining: the linking phrases and adverbs
+@4
+en primer lugar|phrase|first of all, in the first place
+en segundo lugar|phrase|secondly
+por último|phrase|finally, lastly
+es más|phrase|what’s more
+por un lado|phrase|on the one hand
+por otro lado|phrase|on the other hand
+en conclusión|phrase|in conclusion
+en resumen|phrase|in short, to sum up
+debido a|phrase|due to, because of
+a causa de|phrase|because of
+puesto que|phrase|since, given that
+dado que|phrase|given that
+con el fin de|phrase|in order to
+de modo que|phrase|so (that)
+de manera que|phrase|so (that)
+en caso de que|phrase|in case
+a no ser que|phrase|unless
+sin que|phrase|without (+ subjunctive)
+antes de que|phrase|before (+ subjunctive)
+en cuanto a|phrase|as for, regarding
+con respecto a|phrase|with regard to
+en lugar de|phrase|instead of
+desde mi punto de vista|phrase|from my point of view
+a mi parecer|phrase|in my view
+por lo general|phrase|generally, as a rule
+en particular|phrase|in particular
+en concreto|phrase|specifically
+a largo plazo|phrase|in the long run
+a corto plazo|phrase|in the short term
+hoy en día|phrase|nowadays
+en la actualidad|phrase|currently, nowadays
+de todos modos|phrase|anyway
+de todas formas|phrase|anyway
+en todo caso|phrase|in any case
+al fin y al cabo|phrase|after all
+desde luego|phrase|of course, certainly
+al contrario|phrase|on the contrary
+por el contrario|phrase|on the contrary
+ni siquiera|phrase|not even
+más bien|phrase|rather
+rara vez|phrase|rarely
+más o menos|phrase|more or less
+asimismo|adv|likewise, also
+obviamente|adv|obviously
+evidentemente|adv|evidently, obviously
+aparentemente|adv|apparently
+supuestamente|adv|supposedly
+precisamente|adv|precisely
+prácticamente|adv|practically
+relativamente|adv|relatively
+sumamente|adv|extremely
+básicamente|adv|basically
+principalmente|adv|mainly
+únicamente|adv|only, solely
+simplemente|adv|simply
+directamente|adv|directly
+personalmente|adv|personally
+sinceramente|adv|honestly, sincerely
+francamente|adv|frankly
+definitivamente|adv|definitely
+constantemente|adv|constantly
+frecuentemente|adv|frequently
+anteriormente|adv|previously
+posteriormente|adv|later, afterwards
+gradualmente|adv|gradually
+igualmente|adv|equally; likewise
+aproximadamente|adv|approximately
+// abstract ideas
+aspecto|m|aspect; appearance
+factor|m|factor
+elemento|m|element
+asunto|m|matter, issue
+cuestión|f|question, issue
+condición|f|condition
+circunstancia|f|circumstance
+contexto|m|context
+realidad|f|reality
+criterio|m|criterion; judgment
+creencia|f|belief
+ética|f|ethics
+dignidad|f|dignity
+privilegio|m|privilege
+influencia|f|influence
+impacto|m|impact
+origen|m|origin
+motivo|m|reason, motive
+propósito|m|purpose
+intención|f|intention
+logro|m|achievement|+
+reto|m|challenge
+desafío|m|challenge
+obstáculo|m|obstacle
+dificultad|f|difficulty
+tendencia|f|tendency, trend
+hábito|m|habit
+rutina|f|routine
+transformación|f|transformation
+estructura|f|structure
+característica|f|characteristic, feature
+cualidad|f|quality (of a person)
+defecto|m|flaw, defect
+virtud|f|virtue|+
+inconveniente|m|drawback, problem
+prioridad|f|priority
+necesidad|f|need, necessity
+alternativa|f|alternative
+opción|f|option
+propuesta|f|proposal
+desacuerdo|m|disagreement
+equilibrio|m|balance
+armonía|f|harmony|+
+caos|m|chaos
+orden|m|order (tidiness, sequence)
+desorden|m|mess, disorder
+tranquilidad|f|calm, peace and quiet|+
+@4 feeling
+autoestima|f|self-esteem
+estado de ánimo|phrase|mood
+ánimo|m|spirit, mood; encouragement (¡ánimo!: cheer up!)
+humor|m|humor; mood
+enojo|m|anger|-
+temor|m|fear|-
+angustia|f|anguish, distress|-
+celos|mpl|jealousy|-
+satisfacción|f|satisfaction|+
+decepción|f|disappointment|-
+frustración|f|frustration|-
+entusiasmo|m|enthusiasm|+
+pasión|f|passion
+curiosidad|f|curiosity
+admiración|f|admiration
+empatía|f|empathy|+
+compasión|f|compassion|+
+certeza|f|certainty
+inseguridad|f|insecurity|-
+motivación|f|motivation
+inspiración|f|inspiration
+nostalgia|f|nostalgia
+gratitud|f|gratitude|+
+`);
+  LISTS.push(`
+// feelings, opinions and judgments: adjectives
+@4 feeling
+angustiado|a|distressed|st -
+agobiado|a|overwhelmed|st -
+desanimado|a|discouraged|st -
+optimista|a|optimistic|+
+pesimista|a|pessimistic|-
+comprensivo|a|understanding|+
+sensible|a|sensitive
+sensato|a|sensible|+
+maduro|a|mature; ripe
+inmaduro|a|immature|-
+respetuoso|a|respectful|+
+humilde|a|humble|+
+arrogante|a|arrogant|-
+ambicioso|a|ambitious
+leal|a|loyal|+
+fiel|a|faithful, loyal|+
+honrado|a|honest|+
+irresponsable|a|irresponsible|-
+@4
+realista|a|realistic
+razonable|a|reasonable
+lógico|a|logical
+coherente|a|coherent, consistent
+equilibrado|a|balanced
+flexible|a|flexible
+digno|a|worthy, dignified
+valioso|a|valuable|+
+esencial|a|essential
+fundamental|a|fundamental
+imprescindible|a|essential, indispensable
+relevante|a|relevant
+significativo|a|significant
+considerable|a|considerable
+notable|a|remarkable, notable
+adecuado|a|suitable, appropriate
+apropiado|a|appropriate
+conveniente|a|advisable, convenient
+favorable|a|favorable|+
+absurdo|a|absurd|-
+ridículo|a|ridiculous|-
+inevitable|a|inevitable
+inesperado|a|unexpected
+previsible|a|predictable
+sorprendente|a|surprising
+impresionante|a|impressive|+
+emocionante|a|exciting|+
+conmovedor|a|moving, touching
+preocupante|a|worrying|-
+alarmante|a|alarming|-
+delicado|a|delicate, sensitive
+abstracto|a|abstract
+concreto|a|concrete, specific
+particular|a=|particular; private
+específico|a|specific
+preciso|a|precise; necessary
+auténtico|a|authentic
+original|a=|original
+habitual|a=|usual
+cotidiano|a|everyday, daily
+semejante|a|similar, such
+similar|a=|similar
+opuesto|a|opposite
+contrario|a|contrary, opposite
+mutuo|a|mutual
+ajeno|a|someone else’s; unaware of
+individual|a=|individual
+colectivo|a|collective
+íntimo|a|intimate, close
+personal|a=|personal, private
+// arguing, explaining and feeling: verbs
+sostener|v|hold; maintain (an opinion)
+afirmar|v|state, claim
+admitir|v|admit
+aclarar|v|clarify
+justificar|v|justify
+persuadir|v|persuade
+influir|v.y|influence
+cuestionar|v|question
+desconfiar|v.í|distrust
+reflexionar|v|reflect, think it over
+evaluar|v.ú|evaluate, assess
+juzgar|v|judge
+interpretar|v|interpret; perform
+exagerar|v|exaggerate
+acertar|v.ie|get right, guess correctly
+coincidir|v|agree; coincide
+discrepar|v|disagree
+oponerse|v|oppose, be against
+favorecer|v.zc|favor, benefit
+perjudicar|v|harm, damage
+beneficiar|v|benefit
+garantizar|v|guarantee
+asegurar|v|ensure; assure; insure
+asegurarse|v|make sure
+comprometerse|v|commit (oneself)
+implicar|v|imply, involve
+consistir|v|consist (consistir en: consist of)
+contribuir|v.y|contribute
+aportar|v|contribute, bring
+provocar|v|cause, provoke
+causar|v|cause
+generar|v|generate
+fortalecer|v.zc|strengthen
+debilitar|v|weaken
+ampliar|v.í|expand, widen
+limitar|v|limit
+controlar|v|control
+establecer|v.zc|establish, set up
+adaptarse|v|adapt
+enfrentar|v|face, confront
+enfrentarse|v|face up to
+solucionar|v|solve
+tolerar|v|tolerate
+soportar|v|stand, put up with
+aguantar|v|put up with, bear
+padecer|v.zc|suffer (from)
+arriesgarse|v|take a risk
+@4 feeling
+animar|v|cheer up, encourage
+desanimarse|v|lose heart
+emocionarse|v|get excited, be moved
+ofender|v|offend
+ofenderse|v|take offense
+molestarse|v|get annoyed; bother
+avergonzarse|v.ue|be ashamed
+desahogarse|v|let off steam
+confesar|v.ie|confess
+lamentar|v|regret, be sorry about
+envidiar|v|envy
+despreciar|v|despise
+ignorar|v|ignore; not know
+fingir|v|pretend
+engañar|v|deceive, cheat
+traicionar|v|betray
+decepcionar|v|disappoint
+impresionar|v|impress
+conmover|v.ue|move (emotionally)
+inspirar|v|inspire
+motivar|v|motivate
+desafiar|v.í|challenge, defy
+`);
+  LISTS.push(`
+// travel, culture and the arts
+@4 travel
+itinerario|m|itinerary
+alojamiento|m|accommodation, lodging
+albergue|m|hostel|place
+hostal|m|guesthouse|place
+retraso|m|delay
+escala|f|stopover; scale
+aduana|f|customs
+embajada|f|embassy|place
+crucero|m|cruise
+recorrido|m|tour, route
+patrimonio|m|heritage
+monumento|m|monument|place
+catedral|f|cathedral|place
+castillo|m|castle|place
+palacio|m|palace|place
+reservar|v|book, reserve
+cancelar|v|cancel
+retrasarse|v|be late, be delayed
+turístico|a|tourist
+pintoresco|a|picturesque|+
+histórico|a|historic, historical
+exótico|a|exotic
+inolvidable|a|unforgettable|+
+acogedor|a|cozy, welcoming|+
+@4 travel,people
+mochilero|m~|backpacker|per
+@4 art
+exposición|f|exhibition
+obra|f|work (of art, of literature); construction work
+obra de arte|phrase|work of art
+obra de teatro|phrase|play
+obra maestra|phrase|masterpiece
+retrato|m|portrait
+estilo|m|style
+creatividad|f|creativity|+
+arquitectura|f|architecture
+diseño|m|design
+fotografía|f|photography; photograph
+espectáculo|m|show, spectacle
+función|f|show, performance; function
+escena|f|scene
+escenario|m|stage; setting
+actuación|f|performance; acting
+género|m|genre; gender; kind
+trama|f|plot
+artesanía|f|crafts, handicrafts
+folclore|m|folklore
+festival|m|festival
+feria|f|fair
+desfile|m|parade
+carnaval|m|carnival
+identidad|f|identity
+herencia|f|heritage; inheritance
+intercambio|m|exchange
+artístico|a|artistic
+clásico|a|classic, classical
+contemporáneo|a|contemporary
+bilingüe|a|bilingual
+actuar|v.ú|act; perform
+componer|v|compose
+intercambiar|v|exchange
+exponer|v|exhibit; explain; expose
+@4 art,people
+poeta|mf|poet|per
+novelista|mf|novelist|per
+narrador|m~|narrator|per
+artesano|m~|craftsman/craftswoman|per
+@3 music
+instrumento|m|instrument
+@4 music
+orquesta|f|orchestra
+// housing and city life
+@4 home
+ascensor|m|elevator|alt:elevador
+calefacción|f|heating
+aire acondicionado|phrase|air conditioning
+mantenimiento|m|maintenance
+reparación|f|repair
+construcción|f|construction; building
+compañero de cuarto|phrase|roommate
+metro cuadrado|phrase|square meter
+amueblado|a|furnished
+espacioso|a|spacious
+céntrico|a|central (in location)
+casero|a|homemade
+reparar|v|repair, fix
+renovar|v.ue|renovate; renew
+ubicar|v|locate, place
+ubicarse|v|be located
+portero|m~|doorman; goalkeeper|per
+@4 town
+centro histórico|phrase|historic center
+afueras|fpl|outskirts
+zona verde|phrase|green space, park
+paso de peatones|phrase|crosswalk
+glorieta|f|traffic circle
+ciclovía|f|bike lane
+rascacielos|m|skyscraper
+@4
+tránsito|m|traffic
+urbano|a|urban
+rural|a=|rural
+inseguro|a|unsafe; insecure|-
+iluminación|f|lighting
+contenedor|m|container; dumpster
+poste de luz|phrase|streetlight
+timbre|m|doorbell; stamp (Mexico)
+peatón|m|pedestrian|per
+`);
   const spec = {
     lang: 'es', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'llamarse',
     context: (W, P) => ROM.context(W, P, R),
@@ -3065,12 +4309,21 @@ quieto|a|still, not moving
     describe, enGloss, inflect, numbers,
     connectors: ['porque', 'ya que', 'pero', 'sin embargo', 'aunque', 'en cambio', 'sino', 'mientras que', 'y', 'o', 'además', 'también', 'por ejemplo',
       'así que', 'por eso', 'entonces', 'por lo tanto', 'cuando', 'mientras', 'después', 'luego', 'antes', 'al final', 'por fin', 'hasta que', 'desde que',
-      'si', 'para que', 'creo que', 'pienso que', 'me parece que', 'en mi opinión', 'o sea', 'es decir', 'de hecho', 'primero'],
+      'si', 'para que', 'creo que', 'pienso que', 'me parece que', 'en mi opinión', 'o sea', 'es decir', 'de hecho', 'primero',
+      // (DX-B2) the B2 linking words
+      'no obstante', 'aun así', 'a pesar de que', 'por un lado', 'por otro lado', 'puesto que', 'dado que', 'debido a', 'por consiguiente',
+      'en conclusión', 'en resumen', 'en definitiva', 'asimismo', 'incluso', 'es más', 'en primer lugar', 'por último', 'a menos que',
+      'con tal de que', 'siempre que', 'en caso de que', 'desde mi punto de vista', 'a mi parecer'],
     connectorKinds: { porque: 'reason', 'ya que': 'reason', pero: 'contrast', 'sin embargo': 'contrast', aunque: 'contrast', 'en cambio': 'contrast', sino: 'contrast',
       'mientras que': 'contrast', y: 'add', o: 'add', 'además': 'add', 'también': 'add', 'por ejemplo': 'add', 'o sea': 'add', 'es decir': 'add', 'de hecho': 'add',
       'así que': 'result', 'por eso': 'result', entonces: 'result', 'por lo tanto': 'result', cuando: 'time', mientras: 'time', 'después': 'time', luego: 'time',
       antes: 'time', 'al final': 'time', 'por fin': 'time', 'hasta que': 'time', 'desde que': 'time', primero: 'time', si: 'cond', 'para que': 'reason',
-      'creo que': 'opinion', 'pienso que': 'opinion', 'me parece que': 'opinion', 'en mi opinión': 'opinion' },
+      'creo que': 'opinion', 'pienso que': 'opinion', 'me parece que': 'opinion', 'en mi opinión': 'opinion',
+      'no obstante': 'contrast', 'aun así': 'contrast', 'a pesar de que': 'contrast', 'por un lado': 'contrast', 'por otro lado': 'contrast',
+      'puesto que': 'reason', 'dado que': 'reason', 'debido a': 'reason', 'por consiguiente': 'result', 'en conclusión': 'result',
+      'en resumen': 'result', 'en definitiva': 'result', asimismo: 'add', incluso: 'add', 'es más': 'add', 'en primer lugar': 'time',
+      'por último': 'time', 'a menos que': 'cond', 'con tal de que': 'cond', 'siempre que': 'cond', 'en caso de que': 'cond',
+      'desde mi punto de vista': 'opinion', 'a mi parecer': 'opinion' },
     weakConnectors: ['y', 'e', 'o', 'u'],
     fillers: ['pues', 'este', 'bueno', 'o sea', 'eh', 'mmm', 'a ver', 'entonces', 'la verdad', 'tipo', 'digamos', 'mira', 'oye', 'sabes', 'vale', 'sale'],
   };
