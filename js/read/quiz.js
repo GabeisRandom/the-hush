@@ -117,11 +117,26 @@ const QUIZ = (() => {
 
   // ------------------------------------------------------------ which episodes: this week's at your level, a bonus round one up
   function band() { let b = 1; try { b = DICT.bands().overall | 0; } catch (e) { /* */ } return Math.max(1, Math.min(4, b)); }
-  const list = b => ((content() || {}).episodes || []).filter(e => (b == null || e.band === b) && READ.when(e.when));
-  const fresh = b => list(b).filter(e => !S().eps[e.id]);
+  // (the episode kit, kit.js: once a band's hand-written episodes have all been heard, the kit makes the next week's; the kit
+  // episodes a save has heard are rebuilt from their ids, so they show in the reruns like the rest)
+  const kitOn = () => typeof KIT !== 'undefined' && KIT.on && KIT.on(L());
+  function episodes() {
+    const eps = ((content() || {}).episodes || []).slice();
+    if (kitOn()) for (const id of Object.keys(S().eps)) { const e = KIT.parse(id) && KIT.episode(id); if (e) eps.push(e); }
+    return eps;
+  }
+  const list = b => episodes().filter(e => (b == null || e.band === b) && READ.when(e.when));
+  function fresh(b) {
+    const f = list(b).filter(e => !S().eps[e.id]);
+    if (!f.length && kitOn()) { const k = KIT.next(b, S().eps); if (k) f.push(k); }
+    return f;
+  }
   function week() {
     const b = band(), up = Math.min(4, b + 1), main = fresh(b)[0] || null;
-    return { b, up, main, bonus: fresh(up).find(e => e !== main) || null };
+    let bonus = fresh(up).find(e => e !== main) || null;
+    if (!bonus && main && kitOn()) bonus = KIT.next(up, Object.assign({}, S().eps, { [main.id]: 1 })) || null;          // (B2's bonus: a second kit week)
+    if (bonus && main && bonus.id === main.id) bonus = null;
+    return { b, up, main, bonus };
   }
   // a rerun: the one you heard longest ago (at your band or one up, else any)
   function rerunPick() {
@@ -130,7 +145,7 @@ const QUIZ = (() => {
     const pool = near.length ? near : heard.length ? heard : list(b);
     return pool.slice().sort((x, y) => ((s.eps[x.id] || {}).at || 0) - ((s.eps[y.id] || {}).at || 0))[0] || null;
   }
-  const KIND = { lost: '🔎', weather: '⛅', news: '📰', callin: '☎', story: '📖', interview: '🎙', ad: '📣', recipe: '🍲', postcard: '✉', debate: '⚖', essay: '💭', game: '🎲' };
+  const KIND = { lost: '🔎', weather: '⛅', news: '📰', callin: '☎', story: '📖', interview: '🎙', ad: '📣', recipe: '🍲', postcard: '✉', debate: '⚖', essay: '💭', game: '🎲', serial: '🕵' };
   // the radio's "what's on?" (radio.js RADIO.extra): { label, sub, run }
   function menu(where) {
     if (!started()) return [];
@@ -553,7 +568,7 @@ const QUIZ = (() => {
   const pickLine = (arr, k) => (arr && arr.length ? arr[Math.abs(k | 0) % arr.length] : null);
   async function play(ep, o = {}) {
     if (!ep || openN) return null;
-    const sh = show(); if (!sh) return null;
+    const sh = o.show || show(); if (!sh) return null;          // (o.show: another program's frame, e.g. serial.js's radio drama)
     const band = ep.band || 1, lang = L(), s0 = S(), rec0 = s0.eps[ep.id], firstEver = !s0.n;
     const items = (ep.items || []).map((raw, k) => ITEMS.resolve(raw, k, hash(ep.id) ^ (((rec0 && rec0.n) || 0) * 7919 + 13)));
     const hosts = sh.hosts || {}, guests = ep.voices || {}, voices = Object.assign({}, hosts, guests);
@@ -564,7 +579,7 @@ const QUIZ = (() => {
     const outro = (sh.toQuiz || []).map(l => Object.assign({ frame: true }, l)), all = opener.concat(seg, outro), segAt = opener.length;
     const tf = sh.tf || null, asker = sh.asker || Object.keys(hosts)[1] || Object.keys(hosts)[0];
     const talking = new Set(seg.map(l => l.who)), cast = Object.keys(hosts).concat(Object.keys(guests).filter(w => talking.has(w) && !hosts[w]));
-    const chip = o.practice ? '<i class="qz-chip prac">rerun · practice</i>' : o.week ? '<i class="qz-chip prac">rerun · this week</i>' : o.bonus ? '<i class="qz-chip bonus">bonus round</i>' : '<i class="qz-chip new">this week</i>';
+    const chip = o.chip || (o.practice ? '<i class="qz-chip prac">rerun · practice</i>' : o.week ? '<i class="qz-chip prac">rerun · this week</i>' : o.bonus ? '<i class="qz-chip bonus">bonus round</i>' : '<i class="qz-chip new">this week</i>');
     const station = (typeof RADIO !== 'undefined' && RADIO.STATION) ? P(RADIO.STATION[lang] || RADIO.STATION.en) : 'Radio Alba 98.6';
     const r = open('radio');
     r.innerHTML = `<div class="qz-shade"></div><div class="qz-card"><div class="qz-top"><canvas class="qz-logo" width="208" height="128"></canvas>`
@@ -577,7 +592,7 @@ const QUIZ = (() => {
       + `<canvas class="qz-radioart" width="420" height="270"></canvas>`
       + `<div class="qz-script hidden">${all.map((l, i) => `<p class="qz-l${l.frame ? ' frame' : ''}" data-i="${i}"><span class="who">${esc(nameOf(l.who))}</span><span class="tx" data-text="${esc(l.text)}">${tapWords(l.text)}</span><button class="qz-sb" type="button" data-line="${i}" title="Hear this line">🔊</button><span class="en">${esc(l.en || '')}</span></p>`).join('')}</div></div>`
       + `<div class="qz-main"><div class="qz-after"></div><div class="qz-h">The quiz · ${items.length} questions${o.prize ? ` · ${o.bonus ? 3 : 2} coins a right answer` : ''}</div>`
-      + (firstEver ? `<p class="qz-note">How it works: listen (two plays), answer, then lock in. A perfect score adds a sticker to your album, and listening every week makes you a regular.</p>` : '')
+      + (firstEver && !o.show ? `<p class="qz-note">How it works: listen (two plays), answer, then lock in. A perfect score adds a sticker to your album, and listening every week makes you a regular.</p>` : '')
       + (o.practice || o.week ? '<p class="qz-note">A rerun: no prizes. Your answers still count toward your listening.</p>' : '')
       + `<div class="qz-items">${items.map((it, i) => ITEMS.html(it, i + 1, { tf })).join('')}</div></div></div>`
       + `<div class="qz-foot"><span class="nt">Answer while it plays, or after.</span><span class="sp"></span><button class="qz-btn main" data-a="lock">Lock in my answers ▸</button></div></div>`;
@@ -651,13 +666,13 @@ const QUIZ = (() => {
       const res = items.map(it => { const a = ITEMS.answer(main, it, A), sc = ITEMS.score(it, a); try { DICT.log(skill, band, sc); } catch (e) { /* */ } return { it, a, s: sc }; });
       seg.forEach(l => { try { READER.markRead(l.text, skill === 'listen' && played ? 'heard' : 'read'); } catch (e) { /* */ } });
       res.forEach(x => ITEMS.mark(main, x.it, x.a, x.s, { tf, where: true }));
-      const got = award(ep, o, res, skill);
+      const got = o.award ? o.award(res, skill) : award(ep, o, res, skill);          // (o.award: the other program scores it itself)
       result = { total: got.total, max: got.max, skill, got, ep: ep.id };
       T.last = result;
       showScript('after');
       // the hosts react (and greet a regular), in the language, read out by their voices
       const ratio = got.max ? got.total / got.max : 0, k = hash(ep.id) + S().n;
-      const said = [pickLine(got.perfect ? sh.perfect : ratio >= 0.6 ? sh.good : sh.low, k)];
+      const said = (got.say || []).concat([pickLine(got.perfect ? sh.perfect : ratio >= 0.6 ? sh.good : sh.low, k)]);
       if (got.greet) { const g = (sh.regular || {})[got.greet] || (sh.regular || {}).more; if (g) said.push(Object.assign({}, g, { text: String(g.text).replace(/\{n\}/g, got.greet), en: String(g.en || '').replace(/\{n\}/g, got.greet) })); }
       if (sh.bye) said.push(pickLine(sh.bye, k));
       const lines = said.filter(Boolean);
@@ -667,6 +682,7 @@ const QUIZ = (() => {
       if (got.sticker) prize.push(`<figure><canvas width="184" height="184" data-sticker="${esc(got.sticker.id)}"></canvas><span class="it">★ A new sticker!<br>${H(got.sticker.t)} <small style="opacity:.7">(${esc(got.sticker.en || '')})</small></span></figure>`);
       for (const c of got.cos) prize.push(`<span class="it">🎁 ${esc(READ.mimo())} got ${esc(c)}! (switch it on or off on the People page)</span>`);
       if (o.practice || o.week) prize.push('<span class="it">A rerun: no prizes, but it counts as practice.</span>');
+      for (const x of got.extra || []) prize.push(`<span class="it">${esc(x)}</span>`);
       const after = main.querySelector('.qz-after');
       after.innerHTML = `<div class="qz-prize">${prize.join('')}</div>` + lines.map((l, i) => `<div class="qz-bub" data-b="${i}"><canvas width="112" height="112"></canvas><div class="b"><span class="who">${esc(nameOf(l.who))}</span>${H(l.text)}<span class="en hidden">${esc(l.en || '')}</span></div></div>`).join('');
       after.querySelectorAll('.qz-bub').forEach(b => { const l = lines[+b.dataset.b]; face(b.querySelector('canvas'), (voices[l.who] || {}).look); b.onclick = () => b.querySelector('.en').classList.toggle('hidden'); });
