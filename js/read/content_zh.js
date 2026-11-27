@@ -71,6 +71,19 @@ READ.add('zh', {
         { ask: '[中秋节|zhōng qiū jié] [的|de] [时候|shí hou] ， [人们|rén men] [做|zuò] [什么|shén me] ？', en: 'What do people do at the Mid-Autumn Festival?', want: { points: [['[月饼|yuè bǐng]'], ['[月亮|yuè liang]'], ['[一家人|yī jiā rén]', '[一起|yī qǐ]', '[家人|jiā rén]']], enough: 1 },
           starter: '[他们|tā men] [吃|chī] ___ ， [看|kàn] ___ 。', hint: 'The last page.', model: '[一家人|yī jiā rén] [一起|yī qǐ] [吃|chī] [月饼|yuè bǐng] ， [看|kàn] [月亮|yuè liang] 。', simple: '[他们|tā men] [吃|chī] [月饼|yuè bǐng] [吗|ma] ？' },
       ],
+      // the book club (club.js): an older library book, picked once the club's own A1 books are done
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['[后羿|Hòu Yì] [射|shè] [下|xià] [了|le] [几|jǐ] [个|gè] [太阳|tài yáng] ？', 'How many suns did Hou Yi shoot down?'], opts: [['[九|jiǔ] [个|gè]', 'Nine'], ['[十|shí] [个|gè]', 'Ten'], ['[一|yī] [个|gè]', 'One']], key: 0 },
+          { type: 'tfn', ask: ['[后羿|Hòu Yì] [自己|zì jǐ] [吃|chī] [了|le] [那|nà] [颗|kē] [药|yào] 。', 'Hou Yi ate the pill himself.'], key: false },
+          { type: 'short', ask: ['[谁|shéi] [跟|gēn] [着|zhe] [嫦娥|Cháng é] [去|qù] [了|le] [月亮|yuè liang] ？', 'Who followed Chang’e to the moon?'], want: { lemmas: ['[兔子|tù zi]'] }, model: ['[她|tā] [的|de] [小|xiǎo] [兔子|tù zi] 。', 'Her little rabbit.'] },
+        ],
+        opinion: { ask: ['[你|nǐ] [喜欢|xǐ huan] [这|zhè] [个|gè] [故事|gù shi] [吗|ma] ？ [为什么|wèi shén me] ？', 'Do you like this story? Why?'], want: { any: true, min: 2 }, starter: '[我|wǒ] [喜欢|xǐ huan] ， [因为|yīn wèi] ___ 。',
+          model: ['[我|wǒ] [喜欢|xǐ huan] ， [因为|yīn wèi] [嫦娥|Cháng é] [很|hěn] [善良|shàn liáng] 。', 'I like it, because Chang’e is very kind.'], simple: ['[你|nǐ] [喜欢|xǐ huan] [嫦娥|Cháng é] [吗|ma] ？', 'Do you like Chang’e?'] },
+        takes: {
+          fan: ['[我|wǒ] [小时候|xiǎo shí hou] [每|měi] [年|nián] [中秋|zhōng qiū] [都|dōu] [找|zhǎo] [月亮|yuè liang] [上|shàng] [的|de] [兔子|tù zi] 。 [现在|xiàn zài] [我|wǒ] [还|hái] [在|zài] [找|zhǎo] 。', 'When I was little, I looked for the rabbit on the moon every Mid-Autumn. I’m still looking.'],
+          haoran: ['[我|wǒ] [觉得|jué de] [后羿|Hòu Yì] [最|zuì] [厉害|lì hai] 。 [九|jiǔ] [个|gè] [太阳|tài yáng] ， [一|yī] [个|gè] [人|rén] ！', 'I think Hou Yi is the coolest. Nine suns, one man!'],
+        } },
       after: 'The Mid-Autumn Festival falls on the 15th day of the 8th lunar month, when the moon is fullest: families eat mooncakes together and look for Chang’e and her rabbit.' },
 
     // ============================================================ A2: an everyday story, in the past (the train home for Spring Festival)
@@ -130,6 +143,19 @@ READ.add('zh', {
         { ask: '[你|nǐ] [觉得|jué de] [过年|guò nián] [最|zuì] [好|hǎo] [的|de] [是|shì] [什么|shén me] ？ [为什么|wèi shén me] ？', en: 'What do you think is the best thing about New Year? Why?', want: { any: true, reason: true },
           starter: '[我|wǒ] [觉得|jué de] [最|zuì] [好|hǎo] [的|de] [是|shì] ___ ， [因为|yīn wèi] ___ 。', hint: 'There’s no wrong answer: say what you think, and why (因为…).', model: '[我|wǒ] [觉得|jué de] [最|zuì] [好|hǎo] [的|de] [是|shì] [一家人|yī jiā rén] [在|zài] [一起|yī qǐ] ， [因为|yīn wèi] [平时|píng shí] [大家|dà jiā] [都|dōu] [很|hěn] [忙|máng] 。' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['[爸爸|bà ba] [抢|qiǎng] [了|le] [几|jǐ] [天|tiān] [才|cái] [买到|mǎi dào] [火车票|huǒ chē piào] ？', 'How many days did Dad have to try before he got the train tickets?'], opts: [['[三|sān] [天|tiān]', 'Three days'], ['[一|yī] [天|tiān]', 'One day'], ['[十二|shí èr] [天|tiān]', 'Twelve days']], key: 0 },
+          { type: 'tfn', ask: ['[奶奶|nǎi nai] [在|zài] [火车站|huǒ chē zhàn] [等|děng] [他们|tā men] 。', 'Grandma waited for them at the train station.'], key: false },
+          { type: 'mc', ask: ['[过年|guò nián] [为什么|wèi shén me] [一定|yī dìng] [要|yào] [吃|chī] [鱼|yú] ？', 'Why do you have to eat fish at New Year?'], opts: [['[因为|yīn wèi] “ [鱼|yú] ” [和|hé] “ [余|yú] ” [的|de] [声音|shēng yīn] [一样|yī yàng]', 'Because 鱼 (fish) sounds just like 余 (plenty)'], ['[因为|yīn wèi] [爷爷|yé ye] [喜欢|xǐ huan] [钓鱼|diào yú]', 'Because Grandpa likes fishing'], ['[因为|yīn wèi] [鱼|yú] [很|hěn] [便宜|pián yi]', 'Because fish is cheap']], key: 0 },
+          { type: 'short', ask: ['[十二|shí èr] [点|diǎn] [的|de] [时候|shí hou] ， [外面|wài miàn] [有|yǒu] [什么|shén me] ？', 'At midnight, what was there outside?'], want: { lemmas: ['[烟花|yān huā]'] }, model: ['[外面|wài miàn] [有|yǒu] [烟花|yān huā] 。', 'Fireworks.'] },
+        ],
+        opinion: { ask: ['[过|guò] [节|jié] [的|de] [时候|shí hou] ， [你|nǐ] [喜欢|xǐ huan] [回|huí] [老家|lǎo jiā] [吗|ma] ？ [为什么|wèi shén me] ？', 'At holiday time, do you like going back to your family’s hometown? Why?'], want: { any: true, reason: true, min: 5 }, starter: '[我|wǒ] [喜欢|xǐ huan] ___ ， [因为|yīn wèi] ___ 。',
+          model: ['[我|wǒ] [喜欢|xǐ huan] [回|huí] [老家|lǎo jiā] ， [因为|yīn wèi] [可以|kě yǐ] [见到|jiàn dào] [爷爷|yé ye] [奶奶|nǎi nai] 。', 'I like going back home, because I get to see my grandparents.'], simple: ['[你|nǐ] [喜欢|xǐ huan] [过年|guò nián] [吗|ma] ？', 'Do you like New Year?'] },
+        takes: {
+          fan: ['[我|wǒ] [年轻|nián qīng] [的|de] [时候|shí hou] ， [坐|zuò] [过|guò] [三十|sān shí] [个|gè] [小时|xiǎo shí] [的|de] [火车|huǒ chē] [回家|huí jiā] ， [还|hái] [是|shì] [站|zhàn] [着|zhe] [回去|huí qù] [的|de] ！', 'When I was young, I once took a thirty-hour train home, standing the whole way!'],
+          haoran: ['[我|wǒ] [每|měi] [年|nián] [都|dōu] [找|zhǎo] [那个|nà ge] [有|yǒu] [硬币|yìng bì] [的|de] [饺子|jiǎo zi] ， [一|yī] [次|cì] [也|yě] [没|méi] [找到|zhǎo dào] 。 [今年|jīn nián] [一定|yī dìng] [行|xíng] ！', 'Every year I hunt for the dumpling with the coin, and I’ve never once found it. This year for sure!'],
+        } },
       after: 'Every year, hundreds of millions of people travel home for Spring Festival: the biggest yearly journey on Earth, all for one dinner together.' },
   ],
 });
@@ -212,6 +238,20 @@ READ.add('zh', {
         { ask: '[你|nǐ] [觉得|jué de] [寂静|Jì jìng] [是|shì] [从|cóng] [哪里|nǎ lǐ] [来|lái] [的|de] ？ [为什么|wèi shén me] ？', en: 'Where do you think the Hush comes from? Why?', want: { any: true, reason: true, min: 4 },
           starter: '[我|wǒ] [觉得|jué de] ___ ， [因为|yīn wèi] ___ 。', hint: 'There’s no wrong answer: give your opinion, and a reason (因为…).', model: '[我|wǒ] [觉得|jué de] [它|tā] [是|shì] [一|yī] [种|zhǒng] [很|hěn] [大|dà] [的|de] [难过|nán guò] ， [因为|yīn wèi] [难过|nán guò] [的|de] [人|rén] [不|bù] [想|xiǎng] [说话|shuō huà] 。' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['[很|hěn] [久|jiǔ] [以前|yǐ qián] ， [山谷|shān gǔ] [是|shì] [什么|shén me] [样|yàng] [的|de] ？', 'Long ago, what was the valley like?'], opts: [['[这|zhè] [一带|yī dài] [最|zuì] [热闹|rè nao] [的|de] [地方|dì fang]', 'The liveliest place in the region'], ['[一|yī] [个|gè] [很|hěn] [安静|ān jìng] [的|de] [地方|dì fang]', 'A very quiet place'], ['[一|yī] [个|gè] [没有|méi yǒu] [人|rén] [的|de] [地方|dì fang]', 'A place with no people']], key: 0 },
+          { type: 'mc', ask: ['[铜锅|tóng guō] [掉|diào] [在|zài] [地|dì] [上|shàng] [以后|yǐ hòu] ， [广场|guǎng chǎng] [上|shàng] [的|de] [人|rén] [怎么样|zěn me yàng] [了|le] ？', 'After the copper pot fell, what happened to the people in the square?'], opts: [['[一下子|yī xià zi] [抬|tái] [起|qǐ] [头|tóu] ， [好像|hǎo xiàng] [从|cóng] [梦|mèng] [里|lǐ] [醒来|xǐng lái]', 'They all lifted their heads, as if waking from a dream'], ['[都|dōu] [跑|pǎo] [回|huí] [家|jiā] [了|le]', 'They all ran home'], ['[开始|kāi shǐ] [唱歌|chàng gē] [跳舞|tiào wǔ]', 'They started singing and dancing']], key: 0 },
+          { type: 'tfn', ask: ['[山谷|shān gǔ] [里|lǐ] [每|měi] [口|kǒu] [钟|zhōng] [的|de] [声音|shēng yīn] [都|dōu] [一样|yī yàng] 。', 'Every bell in the valley sounds the same.'], key: false },
+          { type: 'short', ask: ['[声音节|Shēng yīn jié] [最|zuì] [重要|zhòng yào] [的|de] [规矩|guī ju] [是|shì] [什么|shén me] ？', 'What was the most important rule of the Festival of Voices?'], want: { lemmas: ['[算数|suàn shù]'] }, model: ['[每|měi] [一|yī] [个|gè] [声音|shēng yīn] [都|dōu] [算数|suàn shù] 。', 'Every voice counts.'] },
+        ],
+        opinion: { ask: ['[白|Bái] [爷爷|yé ye] [说|shuō] ： “ [一|yī] [句|jù] [说|shuō] [错|cuò] [的|de] [话|huà] ， [也|yě] [比|bǐ] [一千|yī qiān] [句|jù] [没|méi] [说|shuō] [出口|chū kǒu] [的|de] [话|huà] [更|gèng] [有|yǒu] [力量|lì liang] 。 ” [你|nǐ] [同意|tóng yì] [吗|ma] ？ [为什么|wèi shén me] ？', 'Grandpa Bai says: “One sentence said wrong is stronger than a thousand left unsaid.” Do you agree? Why?'], want: { any: true, opinion: true, reason: true, min: 8 },
+          starter: '[我|wǒ] [觉得|jué de] ___ ， [因为|yīn wèi] ___ 。', model: ['[我|wǒ] [觉得|jué de] [他|tā] [说|shuō] [得|de] [对|duì] ， [因为|yīn wèi] [说|shuō] [错|cuò] [了|le] [还|hái] [可以|kě yǐ] [改|gǎi] ， [不|bù] [说|shuō] [就|jiù] [什么|shén me] [也|yě] [学|xué] [不|bù] [到|dào] 。', 'I think he’s right, because if you say something wrong you can still fix it, but if you say nothing, you learn nothing.'],
+          simple: ['[你|nǐ] [怕|pà] [说|shuō] [错|cuò] [吗|ma] ？', 'Are you afraid of saying things wrong?'] },
+        takes: {
+          fan: ['[我|wǒ] [教|jiāo] [了|le] [三十|sān shí] [年|nián] [数学|shù xué] 。 [算|suàn] [错|cuò] [的|de] [学生|xué sheng] [最后|zuì hòu] [都|dōu] [学会|xué huì] [了|le] ； [不|bù] [敢|gǎn] [算|suàn] [的|de] ， [才|cái] [让|ràng] [我|wǒ] [担心|dān xīn] 。', 'I taught math for thirty years. The students who got sums wrong all learned in the end; the ones who didn’t dare try were the ones I worried about.'],
+          haoran: ['[书|shū] [上|shàng] [说|shuō] ， [有|yǒu] [人|rén] [觉得|jué de] [钟|zhōng] [是|shì] “ [老人|lǎo rén] [的|de] [东西|dōng xi] ” 。 [我|wǒ] [以前|yǐ qián] [也|yě] [这么|zhè me] [想|xiǎng] 。 [现在|xiàn zài] [我|wǒ] [想|xiǎng] [去|qù] [听|tīng] [一|yī] [听|tīng] 。', 'The book says some people think bells are “old people’s things.” I used to think so too. Now I want to go and hear one.'],
+        } },
       after: 'In the book’s margin, someone has drawn a tiny bell, and written «诺» beside it…' },
   ],
 });

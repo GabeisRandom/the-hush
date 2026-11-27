@@ -79,6 +79,19 @@ READ.add('de', {
         { ask: 'Warum rennen die Räuber in den Wald?', en: 'Why do the robbers run into the forest?', want: { lemmas: ['Angst', 'Krach', 'Gespenst', 'laut', 'Musik'] },
           starter: 'Sie haben ___.', hint: 'Page 7: a terrible racket… and what do they think it is?', model: 'Sie haben Angst, weil die Tiere so laut sind.', simple: 'Haben die Räuber Angst?' },
       ],
+      // the book club (club.js): an older library book, picked once the club's own A1 books are done
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['Warum braucht der Müller den Esel nicht mehr?', 'Why doesn’t the miller need the donkey anymore?'], opts: [['Der Esel ist alt und kann die Säcke nicht mehr tragen', 'The donkey is old and can’t carry the sacks anymore'], ['Der Esel singt zu laut', 'The donkey sings too loudly'], ['Der Müller zieht nach Bremen', 'The miller is moving to Bremen']], key: 0 },
+          { type: 'tfn', ask: ['Die Katze fängt noch viele Mäuse.', 'The cat still catches lots of mice.'], key: false },
+          { type: 'short', ask: ['Wo bleiben die vier Tiere am Ende?', 'Where do the four animals stay in the end?'], want: { lemmas: ['Haus', 'Wald'] }, model: ['Im Haus im Wald.', 'In the house in the forest.'] },
+        ],
+        opinion: { ask: ['Welches Tier magst du am liebsten? Warum?', 'Which animal do you like best? Why?'], want: { any: true, min: 2 }, starter: 'Ich mag ___, weil ___.',
+          model: ['Ich mag den Hahn, weil er so laut ist.', 'I like the rooster, because he’s so loud.'], simple: ['Magst du die Geschichte?', 'Do you like the story?'] },
+        takes: {
+          hollerbach: ['Ich bin oft mit dem Zug durch Bremen gefahren. Der Esel am Rathaus hat wirklich goldene Beine!', 'I often drove the train through Bremen. The donkey by the town hall really does have golden legs!'],
+          malte: ['Vier alte Tiere gründen eine Band. Ehrlich, das ist die beste Idee der ganzen Geschichte.', 'Four old animals start a band. Honestly, that’s the best idea in the whole story.'],
+        } },
       after: 'In Bremen, a bronze statue of the four animals stands by the town hall. People rub the donkey’s front legs for luck: they’re shiny gold from all the hands.' },
 
     // ============================================================ A2: an everyday story, in the Perfekt
@@ -140,6 +153,19 @@ READ.add('de', {
         { ask: 'Was haben sie während des Gewitters gemacht?', en: 'What did they do during the thunderstorm?', want: { lemmas: ['Karte', 'Karten', 'Mau-Mau', 'spielen', 'gespielt', 'Laube'], time: 'past' },
           starter: 'Sie haben in der Laube ___.', hint: 'Page 5: Grandma won three times…', model: 'Sie haben in der Laube Karten gespielt.', simple: 'Haben sie Karten gespielt?' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['Wie heißt der Gartenzwerg?', 'What’s the garden gnome called?'], opts: [['Herbert', 'Herbert'], ['Heinz', 'Heinz'], ['Schulze', 'Schulze']], key: 0 },
+          { type: 'tfn', ask: ['Von eins bis drei darf man im Verein den Rasen mähen.', 'From one to three you’re allowed to mow the lawn in the club.'], key: false },
+          { type: 'mc', ask: ['Was haben die Schnecken gegessen?', 'What did the snails eat?'], opts: [['Den Salat', 'The lettuce'], ['Die Erdbeeren', 'The strawberries'], ['Den Kuchen', 'The cake']], key: 0 },
+          { type: 'short', ask: ['Was macht Lina nächsten Samstag?', 'What is Lina doing next Saturday?'], want: { lemmas: ['Sonnenblumen', 'Sonnenblume', 'pflanzen', 'pflanzt'] }, model: ['Sie pflanzt Sonnenblumen.', 'She’s planting sunflowers.'] },
+        ],
+        opinion: { ask: ['Möchtest du einen Kleingarten haben? Warum (nicht)?', 'Would you like to have an allotment garden? Why (not)?'], want: { any: true, reason: true, min: 5 }, starter: 'Ja, ich möchte einen Garten, weil ___.',
+          model: ['Ja, ich möchte einen Garten, weil ich gern draußen arbeite und Erdbeeren liebe.', 'Yes, I’d like a garden, because I like working outdoors and I love strawberries.'], simple: ['Arbeitest du gern im Garten?', 'Do you like working in the garden?'] },
+        takes: {
+          hollerbach: ['Ich habe seit dreißig Jahren einen Kleingarten. Und ja: Meine Tomaten sind die größten. Das sage ich auch jedes Jahr.', 'I’ve had an allotment for thirty years. And yes: my tomatoes are the biggest. I say that every year too.'],
+          malte: ['Die Mittagsruhe finde ich super. Die sollte es auch in der Schule geben.', 'I think the quiet hours are great. Schools should have them too.'],
+        } },
       after: 'Germany has about 900,000 allotment gardens. Many clubs really do have a rule that part of each garden grows fruit or vegetables, and a quiet time after lunch.' },
   ],
 });
@@ -229,6 +255,20 @@ READ.add('de', {
         { ask: 'Und du? Woher kommt die Stille, glaubst du? Warum?', en: 'And you? Where do you think the Hush comes from? Why?', want: { any: true, min: 4 },
           starter: 'Ich glaube, dass ___, weil ___.', hint: 'There’s no wrong answer: give your opinion and a reason («weil …»).', model: 'Ich glaube, dass die Stille eine große Traurigkeit ist, weil traurige Menschen weniger reden.' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['Was hat Grete mitten im Nebel gemacht?', 'What did Grete do in the middle of the fog?'], opts: [['Sie hat mit dem Hammer auf den Amboss geschlagen', 'She struck the anvil with her hammer'], ['Sie hat ein Lied gesungen', 'She sang a song'], ['Sie hat eine Glocke gekauft', 'She bought a bell']], key: 0 },
+          { type: 'mc', ask: ['Was steht auf der Glocke von Molinar?', 'What does it say on the bell of Molinar?'], opts: [['„Ich wecke, wer schläft.“', '“I wake whoever sleeps.”'], ['„Ich singe mit dem Wasser.“', '“I sing with the water.”'], ['„Glück auf, auch im Dunkeln.“', '“Glück auf, even in the dark.”']], key: 0 },
+          { type: 'tfn', ask: ['Herr Buchholz kennt die Sprüche von allen acht Glocken.', 'Herr Buchholz knows the mottos of all eight bells.'], key: false },
+          { type: 'short', ask: ['Womit läutet man eine Glocke, sagt der Großvater?', 'What do you ring a bell with, according to the grandfather?'], want: { lemmas: ['Herz', 'Herzen'] }, model: ['Mit dem ganzen Herzen.', 'With your whole heart.'] },
+        ],
+        opinion: { ask: ['„Ein Wort mit Fehlern ist besser als tausend Wörter, die niemand sagt.“ Bist du einverstanden? Warum (nicht)?', '“One word with mistakes is better than a thousand words nobody says.” Do you agree? Why (not)?'], want: { any: true, opinion: true, reason: true, min: 6 },
+          starter: 'Ich finde, ___, weil ___.', model: ['Ich finde, das stimmt, weil man nur durch Sprechen besser wird. Fehler gehören zum Lernen.', 'I think that’s true, because you only get better by speaking. Mistakes are part of learning.'],
+          simple: ['Hast du Angst vor Fehlern?', 'Are you afraid of making mistakes?'] },
+        takes: {
+          hollerbach: ['Bei der Bahn hatten wir auch Glocken, an den alten Bahnübergängen. Wenn sie läuteten, blieb das ganze Dorf stehen.', 'At the railway we had bells too, at the old level crossings. When they rang, the whole village stood still.'],
+          malte: ['Ich wusste nicht, dass Glocken Sprüche haben. Auf meiner würde stehen: „Lauter, bitte.“', 'I didn’t know bells had mottos. Mine would say: “Louder, please.”'],
+        } },
       after: 'Someone has drawn a tiny bell in the margin of the last page, and written «N.» beside it…' },
   ],
 });

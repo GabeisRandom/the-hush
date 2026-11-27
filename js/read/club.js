@@ -37,7 +37,9 @@ const CLUB = (() => {
     return o;
   }
   const cfg = (l = L()) => C[l] || null;
-  const clubBooks = () => READ.list('books').filter(b => b.club);
+  // the club's books, its own first: an older library book with a club part (content_<lang>.js, club.after: true) is picked
+  // only once its band's club books have been discussed, so this month's picks never change under a player's feet
+  const clubBooks = () => { const all = READ.list('books').filter(b => b.club); return all.filter(b => !b.club.after).concat(all.filter(b => b.club.after)); };
   function on() { return !!(cfg() && READ.on('books') && clubBooks().length && typeof LIBRARY !== 'undefined'); }
   function started() {
     if (!on() || !G || !G.state || !G.state.flags.hatched) return false;

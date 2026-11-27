@@ -69,6 +69,19 @@ READ.add('es', {
         { ask: '¿Dónde está el dibujo del conejo?', en: 'Where is the rabbit’s picture?', want: { lemmas: ['luna'], not: ['tierra', 'árbol', 'piedra'] },
           starter: 'Está en la ___.', hint: 'Look up at night…', model: 'Está en la luna.', simple: '¿Está en la luna o en la tierra?' },
       ],
+      // the book club (club.js): an older library book, picked once the club's own A1 books are done
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['¿Qué forma toma Quetzalcóatl?', 'What shape does Quetzalcoatl take?'], opts: [['La forma de un hombre', 'The shape of a man'], ['La forma de un conejo', 'The shape of a rabbit'], ['La forma de un pájaro', 'The shape of a bird']], key: 0 },
+          { type: 'tfn', ask: ['Los animales del camino hablan mucho con Quetzalcóatl.', 'The animals on the way talk a lot with Quetzalcoatl.'], key: false },
+          { type: 'short', ask: ['¿Qué come el conejo?', 'What does the rabbit eat?'], want: { lemmas: ['hierba'] }, model: ['Come hierba.', 'It eats grass.'] },
+        ],
+        opinion: { ask: ['¿Te gusta el conejo de la historia? ¿Por qué?', 'Do you like the rabbit in the story? Why?'], want: { any: true, min: 2 }, starter: 'Sí, me gusta porque ___.',
+          model: ['Sí, me gusta porque es pequeño, pero es muy generoso.', 'Yes, I like it because it’s small, but very generous.'], simple: ['¿Te gusta la historia?', 'Do you like the story?'] },
+        takes: {
+          chayo: ['Mi abuela me enseñó a buscar al conejo en la luna llena. Todavía lo busco, ¡y siempre lo encuentro!', 'My grandma taught me to look for the rabbit in the full moon. I still look for it, and I always find it!'],
+          ruben: ['Yo nunca vi al conejo… hasta anoche. Ahora no puedo dejar de verlo.', 'I never saw the rabbit… until last night. Now I can’t stop seeing it.'],
+        } },
       after: 'Tonight, look at the moon: can you see the rabbit? (In Mexico, children look for it on every full moon.)' },
 
     // ============================================================ A2: an everyday story, in the past
@@ -136,6 +149,19 @@ READ.add('es', {
         { ask: '¿Qué pasó cuando empezó a llover?', en: 'What happened when it started to rain?', want: { lemmas: ['luz', 'velas', 'vela', 'leña', 'estufa', 'oscuro'], time: 'past' },
           starter: 'Se fue la ___.', hint: 'Page 6: everything went dark…', model: 'Se fue la luz, y la abuela encendió unas velas.', simple: '¿Se fue la luz?' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['¿Cuántos años iba a cumplir la abuela?', 'How old was Grandma turning?'], opts: [['Setenta', 'Seventy'], ['Sesenta', 'Sixty'], ['Ochenta', 'Eighty']], key: 0 },
+          { type: 'tfn', ask: ['La familia viajó a las montañas en tren.', 'The family traveled to the mountains by train.'], key: false },
+          { type: 'mc', ask: ['¿Qué hizo la abuela cuando se fue la luz?', 'What did Grandma do when the power went out?'], opts: [['Encendió velas y cocinó con leña', 'She lit candles and cooked over firewood'], ['Se fue a dormir', 'She went to bed'], ['Llamó a un vecino', 'She called a neighbor']], key: 0 },
+          { type: 'short', ask: ['Según la abuela, ¿cuál es el secreto de sus tamales?', 'According to Grandma, what’s the secret of her tamales?'], want: { lemmas: ['familia', 'junta', 'juntos', 'cocina'] }, model: ['La familia junta en la cocina.', 'The family, together in the kitchen.'] },
+        ],
+        opinion: { ask: ['¿Qué prefieres: una fiesta grande, o una noche tranquila con tu familia, como la noche de las velas? ¿Por qué?', 'Which do you prefer: a big party, or a quiet night with your family, like the night of the candles? Why?'], want: { any: true, reason: true, min: 5 },
+          starter: 'Prefiero ___ porque ___.', model: ['Prefiero una noche tranquila con mi familia, porque podemos platicar y escuchar historias.', 'I prefer a quiet night with my family, because we can chat and listen to stories.'], simple: ['¿Te gustan las fiestas grandes?', 'Do you like big parties?'] },
+        takes: {
+          chayo: ['En mi casa los tamales también se hacían en familia. Yo era la que los cerraba… y la que se comía el relleno.', 'At my house we made tamales as a family too. I was the one who closed them… and the one who ate the filling.'],
+          ruben: ['Me identifico con los primos: mis tamales también salen chuecos. Pero saben igual de ricos.', 'I relate to the cousins: my tamales come out crooked too. But they taste just as good.'],
+        } },
       after: 'Tamales are made all over Mexico and Central America: for Christmas, for birthdays, and on February 2nd, el Día de la Candelaria.' },
 
     // ============================================================ B1: the land's own history of the Hush
@@ -214,6 +240,20 @@ READ.add('es', {
         { ask: 'Y tú, ¿qué piensas? ¿De dónde viene el Silencio? ¿Por qué?', en: 'And you, what do you think? Where does the Silence come from? Why?', want: { any: true, min: 4 },
           starter: 'Creo que ___, porque ___.', hint: 'There’s no wrong answer: give your opinion and a reason (porque…).', model: 'Creo que es una tristeza muy grande, porque la gente triste deja de hablar.' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['¿Cómo era el valle antes del primer Silencio?', 'What was the valley like before the first Silence?'], opts: [['El lugar más ruidoso de la región', 'The noisiest place in the region'], ['Un lugar muy tranquilo', 'A very quiet place'], ['Un lugar sin pueblos', 'A place with no towns']], key: 0 },
+          { type: 'mc', ask: ['¿Qué pasó cuando a la niña de Molinar se le cayó la olla de cobre?', 'What happened when the girl from Molinar dropped the copper pot?'], opts: [['La gente levantó la cabeza, como si despertara', 'People lifted their heads, as if they were waking up'], ['La olla se rompió en mil pedazos', 'The pot broke into a thousand pieces'], ['Los pájaros se fueron del valle', 'The birds left the valley']], key: 0 },
+          { type: 'tfn', ask: ['Todas las campanas del valle suenan igual.', 'All the bells in the valley sound the same.'], key: false },
+          { type: 'short', ask: ['¿Cuál era la regla más importante de la Fiesta de las Voces?', 'What was the most important rule of the Festival of Voices?'], want: { points: [['toda', 'todas'], ['voz', 'voces'], ['cuenta', 'cuentan', 'contar']], enough: 2 }, model: ['«Toda voz cuenta».', '“Every voice counts.”'] },
+        ],
+        opinion: { ask: ['Para la abuela de don Evaristo, la campana «sonó más fuerte que su miedo». ¿Qué te ayuda a ti cuando tienes miedo de hablar? ¿Por qué?', 'For Don Evaristo’s grandmother, the bell “rang louder than her fear.” What helps you when you’re afraid to speak? Why?'], want: { any: true, reason: true, min: 6 },
+          starter: 'Cuando tengo miedo de hablar, ___, porque ___.', model: ['Cuando tengo miedo de hablar, respiro hondo y busco una cara amable, porque así el miedo se hace más pequeño.', 'When I’m afraid to speak, I take a deep breath and look for a kind face, because that way the fear gets smaller.'],
+          simple: ['¿A veces te da miedo hablar delante de la gente?', 'Are you sometimes afraid to speak in front of people?'] },
+        takes: {
+          chayo: ['En mi pueblo había una fiesta parecida. Grité mi nombre tan fuerte que me quedé sin voz… ¡dos días!', 'My town had a festival like that. I shouted my name so loudly I lost my voice… for two days!'],
+          ruben: ['Lo de «cosas de viejos» me dolió, porque yo decía eso de las campanas. Ya no.', 'The bit about “old people’s things” stung, because I used to say that about the bells. Not anymore.'],
+        } },
       after: 'In the book’s margins, someone has drawn a tiny bell and written «N» next to it…' },
   ],
 });
@@ -524,6 +564,20 @@ READ.add('es', {
         { ask: 'Y tú, si fueras uno de los animales del cuento, ¿qué harías? ¿Por qué?', en: 'And you, if you were one of the animals in the tale, what would you do? Why?', want: { any: true, min: 6, time: 'hypo' },
           starter: 'Si yo fuera ___, ___ porque ___.', hint: 'Answer with “would” («ayudaría», «volaría», «correría») and give a reason.', model: 'Si fuera uno de los animales, ayudaría al colibrí, porque juntos podríamos apagar el fuego.' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['¿Qué hacían los animales en la orilla del río?', 'What were the animals doing on the riverbank?'], opts: [['Miraban cómo ardía el bosque, sin decir nada', 'Watching the forest burn, without a word'], ['Llevaban agua al fuego', 'Carrying water to the fire'], ['Buscaban un bosque nuevo', 'Looking for a new forest']], key: 0 },
+          { type: 'tfn', ask: ['El colibrí cree que puede apagar el incendio él solo.', 'The hummingbird believes it can put out the fire on its own.'], key: false },
+          { type: 'mc', ask: ['¿Qué final del cuento prefiere don Evaristo, y por qué?', 'Which ending of the tale does Don Evaristo prefer, and why?'], opts: [['El que termina con el colibrí volando, porque nos deja la pregunta a nosotros', 'The one that ends with the hummingbird flying, because it leaves the question to us'], ['El de la lluvia, porque es el más bonito', 'The rain one, because it’s the prettiest'], ['El de los animales, porque todos ayudan', 'The animals one, because everyone helps']], key: 0 },
+          { type: 'short', ask: ['Según la abuela de don Evaristo, ¿cómo se mide el valor?', 'According to Don Evaristo’s grandmother, how is courage measured?'], want: { lemmas: ['cuesta', 'costar', 'cuestan'] }, model: ['Por lo que te cuesta hacerlo, no por el tamaño de lo que haces.', 'By what it costs you to do it, not by the size of what you do.'] },
+        ],
+        opinion: { ask: ['«¿Cuál es tu gota?», pregunta don Evaristo. ¿Qué pequeña acción tuya podría ayudar a otros, aunque parezca poca cosa? ¿Por qué vale la pena?', '“What’s your drop?” Don Evaristo asks. What small thing of yours could help others, even if it seems like very little? Why is it worth it?'], want: { any: true, opinion: true, reason: true, min: 12 },
+          starter: 'Mi gota podría ser ___, porque creo que ___.', model: ['Mi gota podría ser saludar a mis vecinos todos los días, porque creo que una palabra amable puede animar a otra persona a hablar también.', 'My drop could be greeting my neighbors every day, because I think a kind word can encourage someone else to speak too.'],
+          simple: ['¿Qué cosa pequeña puedes hacer tú para ayudar?', 'What small thing can you do to help?'] },
+        takes: {
+          chayo: ['Durante treinta años, cada lunes leí un poema en voz alta en mi salón. Casi nadie escuchaba. Hoy, una de esas alumnas es poeta.', 'For thirty years, every Monday, I read a poem out loud in my classroom. Hardly anyone listened. Today, one of those students is a poet.'],
+          ruben: ['Yo soy más del jaguar, la verdad. Pero después de leerlo me vine a la biblioteca a leer en voz alta. Algo es algo.', 'I’m more of a jaguar, honestly. But after reading it I came to the library to read out loud. It’s a start.'],
+        } },
       after: 'This tale is told in many places in South America; many say it comes from the Andes. «Hacer tu parte» means doing your share.' },
   ],
 

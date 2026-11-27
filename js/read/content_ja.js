@@ -67,6 +67,19 @@ READ.add('ja', {
         { ask: '[鶴|つる] は 、 [最後|さいご] に どこ へ [行|い]きました か ？', en: 'Where did the crane go in the end?', want: { lemmas: ['[空|そら]'], not: ['[町|まち]'] },
           starter: '___ へ [飛|と]んで [行|い]きました 。', hint: 'Look up…', model: '[空|そら] へ [飛|と]んで [行|い]きました 。', simple: '[空|そら] です か ？ [町|まち] です か ？' },
       ],
+      // the book club (club.js): an older library book, picked once the club's own A1 books are done
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['おじいさん は 、 [町|まち] へ [何|なに] を [売|う]り に [行|い]きました か ？', 'What did the old man go to town to sell?'], opts: [['たきぎ', 'Firewood'], ['[布|ぬの]', 'Cloth'], ['お[米|こめ]', 'Rice']], key: 0 },
+          { type: 'tfn', ask: ['[娘|むすめ] は 、 [部屋|へや] の [中|なか] を [見|み]て も いい と [言|い]いました 。', 'The young woman said it was all right to look inside the room.'], key: false },
+          { type: 'short', ask: ['[部屋|へや] の [中|なか] に いた の は 、 だれ でした か ？', 'Who was inside the room?'], want: { lemmas: ['[鶴|つる]'] }, model: ['[鶴|つる] でした 。', 'A crane.'] },
+        ],
+        opinion: { ask: ['この お[話|はなし] は すき です か ？ どうして です か ？', 'Do you like this story? Why?'], want: { any: true, min: 2 }, starter: 'はい 、 すき です 。 ___ から です 。',
+          model: ['はい 、 すき です 。 [鶴|つる] が やさしい から です 。', 'Yes, I like it. Because the crane is kind.'], simple: ['[鶴|つる] は すき です か ？', 'Do you like the crane?'] },
+        takes: {
+          chiyo: ['わたし も [着物|きもの] を [縫|ぬ]って いました から 、 [鶴|つる] の [気持|きも]ち が よく わかります 。 いい [布|ぬの] は 、 [時間|じかん] が かかる の です 。', 'I used to sew kimonos, so I understand how the crane felt. Good cloth takes time.'],
+          hayato: ['おばあさん 、 [見|み]ちゃ だめ だって ！ でも 、 ぼく でも のぞいた と [思|おも]います 。', 'Grandma, you weren’t supposed to look! But honestly, I’d have peeked too.'],
+        } },
       after: 'Cranes stand for long life and good fortune in Japan; people fold paper cranes (origami) as wishes. «Tsuru no ongaeshi» is told to children all over the country.' },
 
     // ============================================================ A2: an everyday story, in the past (summer at grandma's in the countryside)
@@ -129,6 +142,19 @@ READ.add('ja', {
         { ask: '[帰|かえ]る [前|まえ] の [夜|よる] 、 [川|かわ] で [何|なに] を [見|み]ました か ？', en: 'What did they see at the river on the night before she went home?', want: { lemmas: ['[蛍|ほたる]'], time: 'past' },
           starter: '___ を [見|み]ました 。', hint: 'Page 7: tiny lights in the dark…', model: '[蛍|ほたる] を [見|み]ました 。', simple: '[光|ひか]る [虫|むし] です 。 [何|なん] です か ？' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['おばあちゃん の [家|いえ] まで 、 [何時間|なんじかん] かかりました か ？', 'How many hours did it take to get to Grandma’s house?'], opts: [['[四時間|よじかん]', 'Four hours'], ['[二時間|にじかん]', 'Two hours'], ['[十時間|じゅうじかん]', 'Ten hours']], key: 0 },
+          { type: 'tfn', ask: ['ハルカ さん は 、 つかまえた [蝶|ちょう] を [家|いえ] に [持|も]って [帰|かえ]りました 。', 'Haruka took the butterfly she caught home with her.'], key: false },
+          { type: 'mc', ask: ['おばあちゃん に よる と 、 [蛍|ほたる] は どんな ところ に います か ？', 'According to Grandma, where do fireflies live?'], opts: [['きれい な [川|かわ]', 'By clean rivers'], ['[大|おお]きな [町|まち]', 'In big towns'], ['[暗|くら]い [森|もり] の [中|なか]', 'Deep in dark woods']], key: 0 },
+          { type: 'short', ask: ['[絵日記|えにっき] で 、 [一番|いちばん] [大|おお]きい [絵|え] は [何|なん] の [絵|え] です か ？', 'In the picture diary, what is the biggest picture of?'], want: { lemmas: ['[蛍|ほたる]'] }, model: ['[蛍|ほたる] の [絵|え] です 。', 'The fireflies.'] },
+        ],
+        opinion: { ask: ['あなた は 、 [夏休|なつやす]み に [何|なに] を する の が すき です か ？ どうして です か ？', 'What do you like doing in the summer holidays? Why?'], want: { any: true, reason: true, min: 5 }, starter: '___ が すき です 。 ___ から です 。',
+          model: ['[海|うみ] で [泳|およ]ぐ の が すき です 。 [水|みず] が [冷|つめ]たくて 、 [気持|きも]ち が いい から です 。', 'I like swimming in the sea. Because the water is cold and it feels great.'], simple: ['[夏|なつ] は すき です か ？', 'Do you like summer?'] },
+        takes: {
+          chiyo: ['わたし の [田舎|いなか] でも 、 [縁側|えんがわ] で すいか を [食|た]べました 。 [種|たね] を [遠|とお]く まで [飛|と]ばす [競争|きょうそう] も しました よ 。', 'In my village we ate watermelon on the veranda too. We even had contests to see who could spit the seeds the farthest.'],
+          hayato: ['ラジオ [体操|たいそう] の はんこ 、 ぼく は [三回|さんかい] で やめました 。 ハルカ さん 、 すごい です 。', 'I gave up on my radio-exercise stamps after three days. Haruka, you’re amazing.'],
+        } },
       after: 'In Japan, many children spend part of the summer holidays at their grandparents’ in the countryside. Radio exercises at dawn (with a stamp card), watermelon on the veranda, Obon with the whole family, and a picture diary as homework.' },
   ],
 });
@@ -211,6 +237,20 @@ READ.add('ja', {
         { ask: 'あなた は 、 [静寂|せいじゃく] は どこ から [来|く]る と [思|おも]います か ？ どうして ？', en: 'And you: where do you think the Hush comes from? Why?', want: { any: true, min: 4 },
           starter: '___ と [思|おも]います 。 ___ から です 。', hint: 'There’s no wrong answer: give your opinion and a reason («…から»).', model: '[大|おお]きな [悲|かな]しみ だ と [思|おも]います 。 [悲|かな]しい [人|ひと] は 、 [話|はな]さなく なる から です 。' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['[昔|むかし] 、 この [谷|たに] は どんな [場所|ばしょ] でした か ？', 'Long ago, what kind of place was this valley?'], opts: [['この あたり で [一番|いちばん] にぎやか な [場所|ばしょ]', 'The liveliest place for miles around'], ['とても [静|しず]か な [場所|ばしょ]', 'A very quiet place'], ['[誰|だれ] も [住|す]んで いない [場所|ばしょ]', 'A place where nobody lived']], key: 0 },
+          { type: 'mc', ask: ['[鐘|かね] を [作|つく]る とき 、 [町|まち] の [人|ひと] たち は [何|なに] を [持|も]ち[寄|よ]りました か ？', 'When the bells were made, what did the townspeople bring?'], opts: [['[古|ふる]い [鍋|なべ] や [鍵|かぎ] や [鏡|かがみ]', 'Old pots, keys and mirrors'], ['お[金|かね] と お[米|こめ]', 'Money and rice'], ['[新|あたら]しい [楽器|がっき]', 'New musical instruments']], key: 0 },
+          { type: 'tfn', ask: ['この [谷|たに] に は 、 [同|おな]じ [音|おと] の [鐘|かね] が たくさん あります 。', 'This valley has lots of bells that sound the same.'], key: false },
+          { type: 'short', ask: ['「 [声|こえ] の [祭|まつ]り 」 の [一番|いちばん] [大切|たいせつ] な きまり は 、 [何|なん] でした か ？', 'What was the most important rule of the Festival of Voices?'], want: { need: [['[声|こえ]'], ['[大切|たいせつ]', '[大事|だいじ]']] }, model: ['「 どの [声|こえ] も [大切|たいせつ] 」 です 。', '“Every voice matters.”'] },
+        ],
+        opinion: { ask: ['「 [小|ちい]さな [声|こえ] も 、 [声|こえ] だ 」 。 この [言葉|ことば] に ついて 、 どう [思|おも]います か ？ どうして です か ？', '“A small voice is still a voice.” What do you think of these words? Why?'], want: { any: true, opinion: true, reason: true, min: 8 },
+          starter: '___ と [思|おも]います 。 ___ から です 。', model: ['とても いい [言葉|ことば] だ と [思|おも]います 。 [声|こえ] が [小|ちい]さい [人|ひと] に も 、 [言|い]いたい こと が ある から です 。', 'I think they’re lovely words. Because people with small voices have things they want to say too.'],
+          simple: ['[人前|ひとまえ] で [話|はな]す の は すき です か ？', 'Do you like speaking in front of people?'] },
+        takes: {
+          chiyo: ['わたし の [村|むら] に も [鐘|かね] が ありました 。 [子供|こども] の [頃|ころ] 、 その [音|おと] で [一日|いちにち] が [始|はじ]まりました 。', 'My village had a bell too. When I was a child, the day began with its sound.'],
+          hayato: ['ぼく も [人前|ひとまえ] で [読|よ]む の が [苦手|にがて] です 。 でも 、 [鐘|かね] を [一|ひと]つ [鳴|な]らして もらえる なら 、 がんばれる かも 。', 'I’m bad at reading aloud in front of people too. But if someone rang a bell just for me, maybe I could do it.'],
+        } },
       after: 'In the margin of the last page, someone has drawn a tiny bell in pencil, and written «ノア» beside it…' },
   ],
 });

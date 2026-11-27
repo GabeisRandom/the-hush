@@ -72,6 +72,19 @@ READ.add('pt', {
         { ask: 'Como a Zezé pega o Saci?', en: 'How does Zezé catch the Saci?', want: { lemmas: ['peneira', 'redemoinho'] },
           starter: 'Ela joga uma ___ no redemoinho.', hint: 'Page 6: Grandma’s sieve…', model: 'Ela joga uma peneira no redemoinho.', simple: 'Ela usa uma peneira?' },
       ],
+      // the book club (club.js): an older library book, picked once the club's own A1 books are done
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['O que some primeiro no sítio?', 'What disappears first at the farm?'], opts: [['O sal', 'The salt'], ['Os óculos', 'The glasses'], ['O cavalo', 'The horse']], key: 0 },
+          { type: 'tfn', ask: ['O Saci tem duas pernas.', 'The Saci has two legs.'], key: false },
+          { type: 'short', ask: ['O que o Saci devolve?', 'What does the Saci give back?'], want: { points: [['óculos'], ['sal'], ['colher']], enough: 1 }, model: ['Os óculos, o sal e a colher.', 'The glasses, the salt and the spoon.'] },
+        ],
+        opinion: { ask: ['Você gosta do Saci? Por quê?', 'Do you like the Saci? Why?'], want: { any: true, min: 2 }, starter: 'Sim, eu gosto, porque ___.',
+          model: ['Sim, eu gosto, porque ele é muito engraçado.', 'Yes, I like him, because he’s really funny.'], simple: ['Você gosta da história?', 'Do you like the story?'] },
+        takes: {
+          iolanda: ['Quando eu era criança, tudo o que sumia lá em casa era culpa do Saci. Principalmente os doces.', 'When I was a child, everything that went missing at home was the Saci’s fault. Especially the sweets.'],
+          breno: ['Eu queria um gorro desses. Sem poder nenhum, só pelo estilo.', 'I’d love a cap like that. No powers, just for the style.'],
+        } },
       after: 'In parts of Brazil, October 31st is the Dia do Saci, the Saci’s Day: a day to celebrate the country’s own legends.' },
 
     // ============================================================ A2: an everyday story, in the past (a school festa junina)
@@ -144,6 +157,19 @@ READ.add('pt', {
         { ask: 'Quem dançou melhor que todo mundo?', en: 'Who danced better than everyone?', want: { lemmas: ['avô', 'Zé', 'vovô', 'vô'] },
           starter: 'O ___ da Bia.', hint: 'Page 8: at the end, someone joined the circle…', model: 'O avô dela, o Zé.', simple: 'Foi o avô dela?' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['Quem era o par da Bia?', 'Who was Bia’s dance partner?'], opts: [['O Lucas', 'Lucas'], ['O avô Zé', 'Grandpa Zé'], ['A professora Cláudia', 'Cláudia, the teacher']], key: 0 },
+          { type: 'tfn', ask: ['A Bia recebeu muitos bilhetes no correio elegante.', 'Bia got lots of notes in the “elegant mail”.'], key: false },
+          { type: 'mc', ask: ['Segundo o avô, qual é o segredo da quadrilha?', 'According to Grandpa, what’s the secret of the quadrilha?'], opts: [['Olhar para o par e sorrir', 'Look at your partner and smile'], ['Olhar para os pés', 'Look at your feet'], ['Dançar bem rápido', 'Dance really fast']], key: 0 },
+          { type: 'short', ask: ['O que aconteceu com a Bia no túnel?', 'What happened to Bia in the tunnel?'], want: { lemmas: ['caiu', 'cair', 'errou', 'errar', 'chão', 'sentada'] }, model: ['Ela errou o passo e caiu sentada no chão.', 'She got the step wrong and landed on her bottom.'] },
+        ],
+        opinion: { ask: ['O avô diz: «Ninguém lembra do erro. Todo mundo lembra da alegria.» Você concorda? Por quê?', 'Grandpa says: “Nobody remembers the mistake. Everybody remembers the joy.” Do you agree? Why?'], want: { any: true, reason: true, min: 5 },
+          starter: 'Eu concordo, porque ___.', model: ['Eu concordo, porque as pessoas lembram mais de quem se diverte.', 'I agree, because people remember the ones who are having fun.'], simple: ['Você gosta de dançar? Por quê?', 'Do you like dancing? Why?'] },
+        takes: {
+          iolanda: ['Eu dancei quadrilha até os setenta anos! E o seu Zé tem razão: quem sorri também erra, mas ninguém percebe.', 'I danced the quadrilha until I was seventy! And Mr. Zé is right: people who smile make mistakes too, but nobody notices.'],
+          breno: ['Eu era o Lucas da minha escola. Pisei no pé do meu par três vezes, e ela nunca me perdoou.', 'I was my school’s Lucas. I stepped on my partner’s foot three times, and she never forgave me.'],
+        } },
       after: 'Festas juninas happen all over Brazil in June, around the feast days of Santo Antônio, São João and São Pedro. The biggest are in the Northeast, in towns like Campina Grande and Caruaru.' },
 
     // ============================================================ B1: the land's own history of the Hush, told as «causos»
@@ -226,6 +252,20 @@ READ.add('pt', {
         { ask: 'E você, o que acha? De onde vem o Silêncio? Por quê?', en: 'And you, what do you think? Where does the Silence come from? Why?', want: { any: true, min: 4 },
           starter: 'Eu acho que ___, porque ___.', hint: 'There’s no wrong answer: give your opinion and a reason (porque…).', model: 'Eu acho que é uma tristeza muito grande, porque as pessoas tristes falam menos.' },
       ],
+      club: { after: true,
+        items: [
+          { type: 'mc', ask: ['Como era o vale antigamente?', 'What was the valley like long ago?'], opts: [['O lugar mais barulhento da região', 'The noisiest place in the region'], ['Um lugar sem música', 'A place without music'], ['Um lugar sem gente', 'A place with no people']], key: 0 },
+          { type: 'mc', ask: ['O que aconteceu quando a panela de cobre caiu na praça?', 'What happened when the copper pot fell in the square?'], opts: [['As pessoas levantaram a cabeça, como se acordassem', 'People lifted their heads, as if waking up'], ['A panela quebrou em mil pedaços', 'The pot broke into a thousand pieces'], ['Os papagaios foram embora', 'The parrots flew away']], key: 0 },
+          { type: 'tfn', ask: ['O avô do Seu Benedito disse o nome dele sem nenhuma dificuldade.', 'Seu Benedito’s grandfather said his name without any difficulty.'], key: false },
+          { type: 'short', ask: ['O que o sineiro fez quando o avô finalmente disse «Benedito»?', 'What did the bell ringer do when Grandpa finally said “Benedito”?'], want: { lemmas: ['sino', 'tocou', 'tocar', 'três'] }, model: ['Ele tocou o sino três vezes, só para ele.', 'He rang the bell three times, just for him.'] },
+        ],
+        opinion: { ask: ['A cidade esperou o avô com «um silêncio bom». Para você, o que é um silêncio bom? Por quê?', 'The town waited for Grandpa with “a good silence.” For you, what is a good silence? Why?'], want: { any: true, opinion: true, reason: true, min: 6 },
+          starter: 'Eu acho que um silêncio bom é ___, porque ___.', model: ['Eu acho que um silêncio bom é quando as pessoas esperam com paciência, porque assim quem tem medo consegue falar.', 'I think a good silence is when people wait patiently, because that way someone who’s scared can manage to speak.'],
+          simple: ['Você gosta de silêncio? Por quê?', 'Do you like silence? Why?'] },
+        takes: {
+          iolanda: ['Como professora, aprendi isso com os meus alunos tímidos: esperar sem pressa vale mais do que mil conselhos.', 'As a teacher, I learned this from my shy students: waiting without rushing is worth more than a thousand pieces of advice.'],
+          breno: ['Nunca pensei que um sino pudesse ser tão legal. Agora eu quero ver um de perto.', 'I never thought a bell could be so cool. Now I want to see one up close.'],
+        } },
       after: 'On the last page, in the margin, in small, neat letters: «Toda voz conta. — N.»' },
   ],
 });
