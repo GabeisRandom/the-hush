@@ -36,14 +36,14 @@ You can start from zero. The game follows your pace: the faster you pick words u
 | Ask Mimo the way | Q |
 | Journal | Tab or J |
 | Phone · flashcards | C · F |
-| Save | P (the game also saves by itself) |
+| Save | P, or Ctrl+S (⌘S on a Mac); the game also saves by itself |
 | Every key | H (you can change any key in the journal's Settings) |
 
-It plays best on a computer with a keyboard, in Chrome or Edge. Phones aren't supported yet.
+It plays on Windows and Mac computers with a keyboard, best in Chrome or Edge (Safari should work too). Phones aren't supported yet.
 
 ## Offline play and updates
 
-The first time you open the game, your browser keeps a copy of it, so after that it opens without the internet too. To get it as an app with its own window, click the install button at the right end of Chrome's or Edge's address bar.
+The first time you open the game, your browser keeps a copy of it, so after that it opens without the internet too. To get it as an app with its own window, click the install button at the right end of Chrome's or Edge's address bar. On a Mac you can also use Safari: **File → Add to Dock** (macOS Sonoma or newer).
 
 When a new version comes out, the game downloads it in the background and shows **"A new version of The Hush is ready"**. Press **Restart now** (it saves your game first), or **Later** to get it the next time you open the game.
 
@@ -53,7 +53,12 @@ There are three save files, kept in your browser on your computer. On the title 
 
 ## Voices
 
-Listening uses your computer's own voices. If a language isn't spoken or sounds robotic, add a voice for it. On Windows, go to **Settings → Time & language → Speech → Add voices**. You can pick the voice in the journal's Settings.
+Listening uses your computer's own voices. If a language isn't spoken or sounds robotic, add a voice for it:
+
+- **Windows:** Settings → Time & language → Speech → Add voices
+- **Mac:** System Settings → Accessibility → Spoken Content → System voice → Manage Voices… (the "Enhanced" voices sound best)
+
+You can pick the voice in the journal's Settings.
 
 ## About
 

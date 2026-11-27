@@ -24,6 +24,19 @@
       border-radius: 12px; padding: 6px 14px; font: 700 13px "Segoe UI", system-ui, sans-serif; box-shadow: 0 4px 0 rgba(43,34,53,.25); transition: opacity .5s; }`;
   document.head.appendChild(css);
 
+  // On a Mac the game's Windows fonts aren't there: stand-ins that look alike (DIN for Bahnschrift, Helvetica Neue for Segoe UI,
+  // Apple Symbols for Segoe UI Symbol). A name the Mac doesn't have just falls through to the next font in each list, as before.
+  if (/Mac|iPhone|iPad|iPod/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent || '')) {
+    const mac = document.createElement('style');
+    mac.textContent = `
+      @font-face { font-family: "Bahnschrift"; src: local("DINAlternate-Bold"), local("DIN Alternate Bold"), local("DIN Alternate"); font-weight: 100 1000; }
+      @font-face { font-family: "Segoe UI"; src: local("HelveticaNeue"), local("Helvetica Neue"); font-weight: 100 450; }
+      @font-face { font-family: "Segoe UI"; src: local("HelveticaNeue-Medium"), local("Helvetica Neue Medium"); font-weight: 451 650; }
+      @font-face { font-family: "Segoe UI"; src: local("HelveticaNeue-Bold"), local("Helvetica Neue Bold"); font-weight: 651 1000; }
+      @font-face { font-family: "Segoe UI Symbol"; src: local("AppleSymbols"), local("Apple Symbols"); }`;
+    document.head.appendChild(mac);
+  }
+
   function note(text, secs = 5) {
     let el = $('hush-note'); if (el) el.remove();
     el = document.createElement('div'); el.id = 'hush-note'; el.textContent = text; document.body.appendChild(el);
