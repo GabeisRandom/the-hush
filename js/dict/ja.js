@@ -452,24 +452,42 @@
     // { k: 'han', ch } · { k: 'kana', ch (hiragana), kata, rom (typed in rōmaji), cap } · { k: 'num', v } · { k: 'latin', t, cap } · { k: 'punct', p };
     // all with s, e (the span in the text) and gap (a space before it); notation adds hard (a word starts here) and grp
     const FWD = c => (c >= '０' && c <= '９' ? String.fromCharCode(c.charCodeAt(0) - 0xFEE0) : c);
+    // a name's honorific typed in rōmaji: «Wataru-san», «Matsuoka-sensei», or «Wataru san» after a capitalized word
+    const HON_R = /^(san|chan|kun|sama|sensei|sensē|senpai|sempai|dono)$/i, HON_TAIL = /^(.+?)-(san|chan|kun|sama|sensei|sensē|senpai|sempai|dono)$/i;
     function unitize(text) {
       const X = [], N = text.length;
-      let gap = false;
+      let gap = false, lastRun = null;
+      // rōmaji text[a..b) → kana units (one run), or one Latin unit; → the run's first unit (null for a Latin one)
+      const romaPush = (a, b, gap0) => {
+        const out = [], cap = /[A-ZĀĪŪĒŌ]/.test(text[a]);
+        romaRun(text, a, b, out);
+        if (!out.length || out.some(u => u.bad)) { X.push({ k: 'latin', t: text.slice(a, b), s: a, e: b, gap: gap0, cap }); return null; }
+        const k0 = X.length;
+        out.forEach((u, q) => X.push({ k: 'kana', ch: u.ch, s: u.s, e: u.e, gap: q ? false : gap0, rom: true, run: a, first: !q, cap: !q && cap }));
+        return X[k0];
+      };
       for (let i = 0; i < N;) {
         const c = text[i];
         if (/\s/.test(c)) { gap = true; i++; continue; }
-        if (isHan(c)) { X.push({ k: 'han', ch: c, s: i, e: i + 1, gap }); gap = false; i++; continue; }
-        if (isKanaC(c)) { X.push({ k: 'kana', ch: toHira(c), s: i, e: i + 1, gap, kata: /[ァ-ヺ]/.test(c) }); gap = false; i++; continue; }
-        if (/[0-9０-９]/.test(c)) { let j = i, v = ''; while (j < N && /[0-9０-９]/.test(text[j])) { v += FWD(text[j]); j++; } X.push({ k: 'num', v: +v, s: i, e: j, gap }); gap = false; i = j; continue; }
         if (/[A-Za-zāīūēōâîûêôĀĪŪĒŌ]/.test(c)) {
           let j = i;
           while (j < N && /[A-Za-zāīūēōâîûêôĀĪŪĒŌ'’-]/.test(text[j])) j++;
-          const out = [];
-          romaRun(text, i, j, out);
-          if (!out.length || out.some(u => u.bad)) X.push({ k: 'latin', t: text.slice(i, j), s: i, e: j, gap, cap: /[A-ZĀĪŪĒŌ]/.test(c) });
-          else out.forEach((u, q) => X.push({ k: 'kana', ch: u.ch, s: u.s, e: u.e, gap: q ? false : gap, rom: true, run: i, first: !q, cap: !q && /[A-ZĀĪŪĒŌ]/.test(c) }));
+          const tok = text.slice(i, j), hm = tok.match(HON_TAIL);
+          if (hm) {             // (the word before the honorific is a name, whatever it spells: 渡る, 待つ…)
+            const h = i + hm[1].length, u0 = romaPush(i, h, gap);
+            if (u0) u0.honNext = true;
+            romaPush(h + 1, j, true);
+            lastRun = null;
+          } else {
+            if (HON_R.test(tok) && lastRun && lastRun.cap && gap) lastRun.honNext = true;
+            lastRun = romaPush(i, j, gap);
+          }
           gap = false; i = j; continue;
         }
+        lastRun = null;
+        if (isHan(c)) { X.push({ k: 'han', ch: c, s: i, e: i + 1, gap }); gap = false; i++; continue; }
+        if (isKanaC(c)) { X.push({ k: 'kana', ch: toHira(c), s: i, e: i + 1, gap, kata: /[ァ-ヺ]/.test(c) }); gap = false; i++; continue; }
+        if (/[0-9０-９]/.test(c)) { let j = i, v = ''; while (j < N && /[0-9０-９]/.test(text[j])) { v += FWD(text[j]); j++; } X.push({ k: 'num', v: +v, s: i, e: j, gap }); gap = false; i = j; continue; }
         let j = i + 1;
         if ('…。.!！?？、,'.includes(c)) while (j < N && text[j] === c) j++;
         X.push({ k: 'punct', p: text.slice(i, j), s: i, e: j, gap }); gap = false; i = j;
@@ -593,10 +611,10 @@
           while (i + L < n && X[i + L].grp === u.grp) L++;
           relax(i + L, b + 1 + 1.5 * L, { t: X.slice(i, i + L).every(x => x.kata) ? 'name' : 'unk', i, j: i + L });
         }
-        if (u.k === 'kana' && u.rom && u.cap && u.first) {     // a capitalized rōmaji word: maybe a name (Maria, Gabi)
+        if (u.k === 'kana' && u.rom && (u.cap || u.honNext) && u.first) {     // a capitalized rōmaji word: maybe a name (Maria, Gabi); before an honorific, surely
           let L = 1;
           while (i + L < n && X[i + L].run === u.run) L++;
-          relax(i + L, b + (sentStart(i) ? 3.5 : 1.6), { t: 'name', i, j: i + L });
+          relax(i + L, b + (u.honNext ? 0.2 : sentStart(i) ? 3.5 : 1.6), { t: 'name', i, j: i + L });
         }
         relax(i + 1, b + (u.k === 'han' ? 4 : 3), { t: 'unk', i, j: i + 1 });
       }
@@ -621,8 +639,9 @@
         const next = T[k + 1], nr = R0(next), pr = R0(T[k - 1]);
         // a particle can't come right before another particle: が を → 蛾 を (the moth)
         if (t.cands[0].e.pos === 'part' && nr && nr.e.pos === 'part' && !/^(の|か|よ|ね|な|も|は|から|まで|だけ|しか|って)$/.test(nr.s) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
-        // さん after a name or a noun is the honorific; before a counter it's 3
-        if (t.cands.some(r => r.e.fl.hon) && pr && (pr.e.pos === 'name' || pr.e.pos === 'n')) pickR(t, r => r.e.fl.hon);
+        // さん after a name or a noun is the honorific (also after a name the dictionary doesn't know: 航さん); before a counter it's 3
+        const pt = T[k - 1];
+        if (t.cands.some(r => r.e.fl.hon) && pt && (pt.t === 'name' || pt.t === 'unk' || (pr && (pr.e.pos === 'name' || pr.e.pos === 'n')))) pickR(t, r => r.e.fl.hon);
       }
       // names: an unknown word (or a katakana one) right before さん / くん / ちゃん / 先生 / 様
       for (let k = 0; k + 1 < T.length; k++) {

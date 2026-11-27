@@ -392,11 +392,13 @@
           if (!a) ends.set(L, a = []);
           // (pinyin is ambiguous, so rarer words cost more: «wo shi» is 我是, not 卧室; and «shi» alone is 是 before 十)
           // (a one-syllable surname typed in lowercase is rarely meant: «liú» is 留 before 刘)
-          a.push({ e, c: 1 + 0.35 * (e.band - 1) + 0.9 * mis + 0.4 * neut + 0.15 * gaps - (TOP.has(e.ch) ? 0.2 : 0) - LONGER * (L - 1) + nudge(e) + (e.pos === 'name' && L === 1 && !u.cap ? 0.4 : 0), mis });
+          // (a space typed inside a rarer word counts more: «nin yao dian» is 要 点, not 药店; «quan zhidao» 全 知道, not 全职 到)
+          const nd = nudge(e);
+          a.push({ e, c: 1 + 0.35 * (e.band - 1) + 0.9 * mis + 0.4 * neut + (e.band === 4 ? 0.6 : e.band === 3 ? 0.45 : 0.15) * gaps - (TOP.has(e.ch) ? 0.2 : 0) - LONGER * (L - 1) + nd + (e.pos === 'name' && L === 1 && !u.cap ? 0.4 : 0), mis, nd });
         }
         for (const [L, a] of ends) {
           a.sort((x, y) => x.c - y.c || x.e.n - y.e.n);
-          relax(i + L, b + a[0].c, { t: 'w', i, j: i + L, cands: a.map(x => x.e), mis: a.map(x => x.mis), py: true });
+          relax(i + L, b + a[0].c, { t: 'w', i, j: i + L, cands: a.map(x => x.e), mis: a.map(x => x.mis), nds: a.map(x => x.nd), py: true });
         }
         if (NUMPY[u.syl] && numTone(X[i])) {       // (a typed tone has to fit: «yī wǎn» is 一碗, not 一万; «liú» is 留, not 六)
           let L = 0;
@@ -429,7 +431,11 @@
     function pick(t, f) {          // (never against the tones you typed: a word they fit beats one they don't)
       const lo = t.mis ? Math.min(...t.mis) : 0;
       const k = t.cands.findIndex((e, q) => (!t.mis || t.mis[q] === lo) && f(e));
-      if (k > 0) { const e = t.cands[k]; t.cands = [e].concat(t.cands.filter(x => x !== e)); if (t.mis) t.mis = [t.mis[k]].concat(t.mis.filter((x, q) => q !== k)); }
+      if (k > 0) {
+        const e = t.cands[k]; t.cands = [e].concat(t.cands.filter(x => x !== e));
+        if (t.mis) t.mis = [t.mis[k]].concat(t.mis.filter((x, q) => q !== k));
+        if (t.nds) t.nds = [t.nds[k]].concat(t.nds.filter((x, q) => q !== k));
+      }
       return k >= 0;
     }
     function disamb(T, X) {
@@ -440,7 +446,19 @@
       for (let k = 0; k < T.length; k++) {
         const t = T[k];
         if (t.t !== 'w' || t.cands.length < 2) continue;
+        // (a tone you typed that fits a word exactly beats a commoner word it doesn't fit: «shī» is 诗, not 是; «huī» 灰, «zhèn» 镇;
+        // unless the words around chose it: «hen hao4» is 很好 with a tone slip, not 很号)
+        if (t.py && t.mis && t.mis[0] > 0 && t.mis.some(m => m === 0) && !(t.nds && t.nds[0] < -0.1)) pick(t, () => true);
         const prev = T[k - 1], next = T[k + 1], nx = E0(next), pv = E0(prev);
+        // (a numeral typed toneless right before a verb, an adjective or a little word is rarely the number: «wo jiu lai» is 就;
+        // before a noun or a measure word it stays one: «jiu ge ren» 九个人, «san pingguo» 三 苹果, which then lacks its 个)
+        // (and before a noun, an adjective or a surname that sounds the same: «bai yeye» 白爷爷, «jiu shouji» 旧手机; with no such reading
+        // it stays a number, «san pingguo», so the missing measure word is caught)
+        if (t.py && !X[t.i].tt && t.j - t.i === 1 && E0(t).pos === 'num' && NUMPY[X[t.i].syl] && t.cands.some(e => e.pos !== 'num') && nx
+          && !(prev && (prev.t === 'num' || (pv && (pv.pos === 'num' || pv.ch === '第'))))) {
+          if (['v', 'adj', 'adv', 'pron', 'prep', 'conj', 'part', 'det'].includes(nx.pos)) pick(t, e => e.pos !== 'num');
+          else if (nx.pos === 'n' && !nx.fl.ncl && !nx.tags.includes('time')) pick(t, e => e.pos === 'adj' || (e.pos === 'name' && nx.tags.some(g => g === 'people' || g === 'family')));
+        }
         // «zhe» after a verb is 着 (看着书), unless a measure word or a number follows (看这本书)
         if (t.py && !X[t.i].tt && t.cands.some(e => e.ch === '着') && t.cands.some(e => e.ch === '这')) {
           pick(t, e => e.ch === (pv && pv.pos === 'v' && !(nx && (nx.pos === 'cl' || nx.pos === 'num')) && !(next && next.t === 'num') ? '着' : '这'));
@@ -453,7 +471,8 @@
         // pinyin: words that sound the same
         if (pv && /^(很|太|非常|真|有点|有点儿|特别|比较|更|最|挺|多么)$/.test(pv.ch) && t.cands.some(e => e.pos === 'adj')) { pick(t, e => e.pos === 'adj'); continue; }
         // an adjective before 的 after a verb («chi tian de»: 吃甜的, the sweet ones)
-        if (nx && nx.ch === '的' && pv && pv.pos === 'v' && t.cands.some(e => e.pos === 'adj')) { pick(t, e => e.pos === 'adj'); continue; }
+        // (not a much rarer one: «chi fan de ren» is 吃饭的人, not 吃烦的人)
+        if (nx && nx.ch === '的' && pv && pv.pos === 'v' && t.cands.some(e => e.pos === 'adj' && e.band <= t.cands[0].band + 2)) { pick(t, e => e.pos === 'adj' && e.band <= t.cands[0].band + 2); continue; }
         // «hui» is 回 (go back) before a direction or a place («hui lai», «hui xuexiao», «hui zhongguo»), 会 (can, will) otherwise
         if (t.cands.some(e => e.ch === '回') && t.cands.some(e => e.ch === '会') && !X[t.i].tt) {
           const place = !!nx && (nx.pos === 'n' || nx.pos === 'name') && nx.tags.some(g => /^(place|town|school|home|shop)$/.test(g));
@@ -470,7 +489,10 @@
           const ma = T.some(x => E0(x) && E0(x).ch === '吗'), you = E0(T[0]) && /^(你|你们|您)$/.test(E0(T[0]).ch);
           pick(t, e => ((q || you) && !ma ? !!e.fl.q : !e.fl.q));
         }
-        if (nx && nx.fl.asp && t.cands[0].pos !== 'v' && !(pv && pv.pos === 'v')) pick(t, e => e.pos === 'v');
+        // (a verb before 了 / 过 / 着; but adjectives and nouns take 了 too, so not a much rarer verb: «da le» is 打了, «shu le» 输了,
+        // «shao le» 少了, not 烧了; «duo chang shijian le» 时间了, not 实践了; and after a number it's the noun: «si shi nian le» 四十年了)
+        if (nx && nx.fl.asp && t.cands[0].pos !== 'v' && !(pv && pv.pos === 'v') && !(prev && (prev.t === 'num' || (pv && (pv.pos === 'num' || pv.pos === 'cl')))))
+          pick(t, e => e.pos === 'v' && e.band <= t.cands[0].band + (t.cands[0].pos === 'adj' ? 1 : 2));
       }
       // numbers said in pinyin that sound like a word (shí wǔ: 十五 or 食物?) before a measure word
       for (let k = 0; k + 1 < T.length; k++) {
@@ -534,7 +556,7 @@
           const chs = t.chs ? t.chs.join('') : null, ent = chs ? first(chs) : null;
           return Object.assign(w, { pos: 'num', num: t.v, en: String(t.v), id: ent ? ent.id : null, lemma: ent ? ent.lemma : null, band: ent ? ent.band : 1, ch: chs || raw,
             src: chs ? `[${chs}|${t.chs.map(c => NUM_R[c]).join(' ')}]` : raw, py: !!t.py,
-            tl: !!t.py && X.slice(t.i, t.j).every(u => !u.tt), lastSyl: t.py ? X[t.j - 1].syl : null });
+            tl: !!t.py && X.slice(t.i, t.j).every(u => !u.tt), lastSyl: t.py ? X[t.j - 1].syl : null, syls: t.py ? X.slice(t.i, t.j).map(u => u.syl) : null });
         }
         const han = X[t.i].k === 'han';
         if (t.t === 'name') return Object.assign(w, { name: true, pos: 'name', ch: han ? raw : null, src: han ? hanSrc(raw, X, t.i, t.j) : raw.replace(/\s+/g, ' ') });
@@ -548,7 +570,11 @@
         if (t.cands.length > 1) w.alts = t.cands.slice(1).map(x => x.id);
         if (t.py && t.mis && t.mis[0]) w.toneBad = true;
         if (en.pos === 'num' && [...en.ch].every(c => NUMC[c] !== undefined)) w.num = numVal([...en.ch]);
-        if (t.py) { w.typed = X.slice(t.i, t.j).map(u => (u.tt && u.tone ? CJK.markTone(u.syl, u.tone) : u.syl)).join(''); w.tl = X.slice(t.i, t.j).every(u => !u.tt); }
+        if (t.py) {
+          w.typed = X.slice(t.i, t.j).map(u => (u.tt && u.tone ? CJK.markTone(u.syl, u.tone) : u.syl)).join(''); w.tl = X.slice(t.i, t.j).every(u => !u.tt);
+          w.ttone = X.slice(t.i, t.j).map(u => (u.tt ? u.tone : 0)); w.run = X[t.i].run; w.gap = !!X[t.i].gap;      // (for fix: what you typed)
+          w.gapIn = X.slice(t.i + 1, t.j).some(u => u.gap);                                                       // (a space typed inside it)
+        }
         return w;
       });
     }
@@ -583,24 +609,43 @@
       if (cur.length) C.push(cur);
       return C;
     }
-    function timeOf(W2) {
+    // 以后 / 之后 on its own (opening the clause, or after its subject: «以后我会…», «我以后想…») or after a length of time
+    // («十年以后», «三个月以后», «一会儿以后») is "later, in the future"; after an event («下课以后») it's only "after"
+    const UNIT = /^(年|天|月|个月|星期|周|礼拜|小时|钟头|分钟|秒|会儿|阵子)$/, NUM_UNIT = /^[一二三四五六七八九十两几半]+(年|天|个月|月|星期|周|小时|分钟)$/;
+    function laterAt(W2) {
+      return W2.some((w, k) => {
+        if (!has(w, '以后', '之后') || W2.slice(0, k).some(x => x.pos === 'v' || x.pos === 'adj')) return false;     // («离开港口几年以后»: after an event)
+        const p = W2[k - 1], p2 = W2[k - 2];
+        if (!p) return true;
+        if (k === 1 && (p.pos === 'pron' || p.name || p.pos === 'name')) return true;
+        if (F(p, 'dur') || (p.ch && NUM_UNIT.test(p.ch))) return true;
+        return !!p.ch && UNIT.test(p.ch) && !!p2 && (p2.pos === 'num' || p2.num != null || p2.pos === 'cl');
+      });
+    }
+    // (carry: the time of a clause of time words alone before a comma, «明天，我去…», «十年以后，我想…»)
+    function timeOf(W2, carry) {
       const verb = W2.find(w => w.pos === 'v'), pred = verb || W2.find(w => w.pos === 'adj');
       let lastW = W2[W2.length - 1];
       for (let k = W2.length - 1; k > 0 && F(W2[k], 'sfp') && !has(W2[k], '了'); k--) lastW = W2[k - 1];
       if (W2.some(w => F(w, 'hypo'))) return 'hypo';
       if (pred && has(lastW, '了') && W2.some(w => has(w, '要', '快', '就要', '快要'))) return 'future';
       if (W2.some(w => w.f.asp === 'guo' || (w.pos === 'v' && w.f.asp === 'le') || (w.f.neg && w.f.tense === 'past'))) return 'past';
-      if (pred && W2.some(w => F(w, 'tp'))) return 'past';
+      if (pred && (W2.some(w => F(w, 'tp')) || carry === 'past')) return 'past';
       if (verb && !F(verb, 'st') && has(lastW, '了')) return 'past';
-      if (pred && (W2.some(w => F(w, 'tf')) || W2.some(w => has(w, '打算', '准备', '将', '将要')))) return 'future';
+      if (pred && (W2.some(w => F(w, 'tf')) || carry === 'future' || laterAt(W2) || W2.some(w => has(w, '打算', '准备', '将', '将要')))) return 'future';
       return pred ? 'present' : null;
     }
     function sentence(ws, text) {
       const C = clausesOf(ws), times = [];
-      let first = null, clauses = 0;
+      let first = null, clauses = 0, carry = null;
       for (const c of C) {
-        const W2 = c.map(k => ws[k]), t = timeOf(W2);
+        const W2 = c.map(k => ws[k]), t = timeOf(W2, carry);
+        carry = null;
         if (W2.some(w => w.pos === 'v' || w.pos === 'adj')) clauses++;
+        else {
+          const nx = ws[c[c.length - 1] + 1];
+          if (nx && nx.punct && /[，,、]/.test(nx.t)) carry = W2.some(w => F(w, 'tp')) ? 'past' : W2.some(w => F(w, 'tf')) || laterAt(W2) ? 'future' : null;
+        }
         if (t) { if (!times.includes(t)) times.push(t); if (!first) first = t; }
       }
       const real = ws.filter(w => !w.punct);
@@ -719,11 +764,14 @@
           const v = c.findIndex(k => ws[k].pos === 'v' || ws[k].pos === 'adj');
           let last = n - 1;
           while (last > 0 && (F(at(last), 'sfp') || has(at(last), '了'))) last--;
-          const t = at(last), vb = at(v), pv = at(last - 1);
+          const t = at(last), vb = at(v), pv = at(last - 1), pv2 = at(last - 2);
           const tGuess = !!t && !!t.tl && (t.alts || []).some(id => { const a = E.get(id); return !a || !(a.fl.tp || a.fl.tf || a.fl.tn); });
-          if (v >= 0 && last > v && t && !tGuess && (F(t, 'tp') || F(t, 'tf') || F(t, 'tn')) && !F(t, 'rel') && pv
+          // (not a time word inside a bigger noun: «住一个晚上» and «哭了一个晚上» are a length of time, «上个星期六» and «的那天晚上»
+          // a phrase; nor «到了冬天»)
+          const inPhrase = !!pv && (pv.pos === 'cl' || (!!pv2 && (pv2.pos === 'det' || pv2.pos === 'num' || pv2.num != null)) || (has(pv, '了') && has(pv2, '到', '等')));
+          if (v >= 0 && last > v && t && !tGuess && (F(t, 'tp') || F(t, 'tf') || F(t, 'tn')) && !F(t, 'rel') && pv && !inPhrase
             && !F(vb, 'cop') && !F(vb, 'mod') && !F(vb, 'st') && !F(vb, 'clause')
-            && !has(pv, '到', '等', '从', '直到', '等到', '在', '是', '于', '的', '每', '这', '那', '上', '下', '和', '跟') && pv.pos !== 'prep' && pv.pos !== 'det' && pv.num == null
+            && !has(pv, '到', '等', '从', '直到', '等到', '在', '是', '于', '的', '每', '这', '那', '上', '下', '和', '跟', '去', '回', '回到') && pv.pos !== 'prep' && pv.pos !== 'det' && pv.num == null
             && !c.slice(v + 1, last).some(k => ws[k].pos === 'v' || F(ws[k], 'tp') || F(ws[k], 'tf') || F(ws[k], 'tn'))) {
             const ins = v > 0 && (at(0).pos === 'pron' || at(0).pos === 'n' || at(0).name) ? 1 : 0;
             const parts = [S(c[last])];
@@ -783,7 +831,9 @@
         if (d.punct || nx.punct || !(d.num != null || F(d, 'd'))) continue;
         const two = d.ch === '二' && !has(ws[k - 1], '第') && !(ws[k - 1] && ws[k - 1].num != null);
         if (nx.pos === 'cl') {
-          if (two && !F(nx, 'part2')) { const s2 = '[两|liǎng]'; add('measure.liang', 'major', k, k, s2, `Before a measure word, 2 is ${Q(s2)}: ${Q(s2 + ' ' + S(k + 1))}.`); }
+          // (a measure word read from toneless pinyin is a guess unless it's a common one: «fei er ming», a name, is no 二名)
+          const clE = E.get(nx.id), sure = !nx.tl || (!!clE && clE.band <= 2);
+          if (two && !F(nx, 'part2') && sure) { const s2 = '[两|liǎng]'; add('measure.liang', 'major', k, k, s2, `Before a measure word, 2 is ${Q(s2)}: ${Q(s2 + ' ' + S(k + 1))}.`); }
           let j = k + 2, N = null;
           while (j < ws.length && j <= k + 5) {
             const w = ws[j];
@@ -794,7 +844,10 @@
           // (two nouns in a row is a compound the list doesn't have — 电影票, 故事书 — so its head is unknown: no guess)
           if (N && ws[j + 1] && !ws[j + 1].punct && (ws[j + 1].pos === 'n' || ws[j + 1].unknown)) N = null;
           const NE = N && E.get(N.id), CL = E.get(nx.id);
-          if (NE && NE.cls && CL && !CL.fl.part && !NE.cls.includes(CL.ch) && !guessNoun(N, CL.ch)) {
+          // (名 and 位 count any person: 一名画家, 一位妈妈)
+          const anyone = !!CL && !!NE && !!CL.fl.ppl && (NE.tags.includes('people') || NE.tags.includes('family') || (!!NE.cls && NE.cls.some(c => c === '位' || c === '名')));
+          // (and a rarer noun read from toneless pinyin is a guess too: «yi ben fang cuo de shu» is 放, not 房)
+          if (NE && NE.cls && CL && !CL.fl.part && !NE.cls.includes(CL.ch) && !guessNoun(N, CL.ch) && sure && !anyone && !(N.tl && NE.band >= 3)) {
             const right = clEntry(NE.cl);
             if (!right) continue;
             const whole = `${S(k)} ${right.lemma} ${N.src}`;
@@ -806,6 +859,11 @@
         if (nx.pos !== 'n') continue;
         const NE = E.get(nx.id);
         if (!NE || !NE.cl || NE.fl.ncl || guessNoun(nx, null)) continue;
+        // (a toneless noun of one syllable that's also a measure word's: «you yi shan men» may well be 一扇门, not 一山; or one typed with
+        // a space inside that starts like one: «yi ke tang» is 一颗糖, not 一课堂)
+        if (nx.tl && (NE.syl.length === 1 || nx.gapIn) && (bySyl.get(NE.syl[0]) || []).some(e => e.pos === 'cl' && e.syl.length === 1)) continue;
+        // (a toneless number whose syllables also spell a word: «zhe jiu shi tuandui» may well be 就是)
+        if (d.tl && d.syls && d.syls.length > 1 && (bySyl.get(d.syls[0]) || []).some(e => e.pos !== 'num' && e.syl.length === d.syls.length && e.syl.every((y, q) => y === d.syls[q]))) continue;
         // (a toneless number whose last syllable is also a measure word: «yi wan mifan» may well be 一碗米饭)
         if (d.tl && d.lastSyl && (bySyl.get(d.lastSyl) || []).some(e => e.pos === 'cl' && e.syl.length === 1)) continue;
         if (ws[k + 2] && !ws[k + 2].punct && (ws[k + 2].pos === 'n' || ws[k + 2].unknown)) continue;
@@ -830,14 +888,31 @@
       const ops = (errors || []).filter(x => x && x.at && x._src !== undefined).map(x => ({ i: x.at[0], j: x.at[1], src: x._src })).sort((x, y) => x.i - y.i || y.j - x.j);
       const parts = [];
       let k = 0;
+      const keep = q => parts.push({ src: ws[q].src || ws[q].t, w: ws[q] });
       for (const op of ops) {
         if (op.i < k) continue;
-        while (k < op.i) parts.push(ws[k++].src || ws[k - 1].t);
-        if (op.src) parts.push(op.src);
+        while (k < op.i) keep(k++);
+        if (op.src) parts.push({ src: op.src });
         k = op.j + 1;
       }
-      while (k < ws.length) parts.push(ws[k++].src || ws[k - 1].t);
-      const src = parts.filter(Boolean).join(' ');
+      while (k < ws.length) keep(k++);
+      // (the words you got right stay as you typed them in pinyin: joined, with your neutral tones; «zhège» isn't "corrected" to «zhè gè»)
+      const BR = /^\[([^\]|]+)\|([^\]]+)\]$/, neutral = y => y.normalize('NFD').replace(/[̀́̄̌]/g, '').normalize('NFC');
+      const toned = new Set(ws.filter(w => w.ttone && w.ttone.some(x => x > 0)).map(w => w.run));
+      const out = [];
+      for (const p of parts) {
+        const w = p.w;
+        let s = p.src;
+        const m = w && w.py && w.ttone ? String(s).match(BR) : null;
+        if (m && toned.has(w.run)) {
+          const sy = m[2].split(' ');
+          if (sy.length === w.ttone.length) s = `[${m[1]}|${sy.map((y, q) => (w.ttone[q] === 0 ? neutral(y) : y)).join(' ')}]`;
+        }
+        const last = out[out.length - 1], lm = m && last && last.w ? String(last.src).match(BR) : null;
+        if (lm && w.run === last.w.run && !w.gap) { const m2 = s.match(BR); last.src = `[${lm[1]}${m2[1]}|${lm[2]} ${m2[2]}]`; last.w = w; continue; }
+        out.push({ src: s, w: m ? w : null });
+      }
+      const src = out.map(p => p.src).filter(Boolean).join(' ');
       if (a) a.fixedSrc = src;
       return CJK.plain(src, { lang: 'zh', mode });
     }
@@ -1173,7 +1248,7 @@
 瓶 píng cl2 a bottle of %part
 碗 wǎn cl2 a bowl of %part
 双 shuāng cl2 a pair of %part
-位 wèi cl2 (people, polite)
+位 wèi cl2 (people, polite) %ppl
 口 kǒu cl2 (people in a family); a mouthful %part
 家#cl jiā cl1 (shops, restaurants, companies)
 片 piàn cl3 a slice of, a piece of %part
@@ -3384,6 +3459,849 @@
 瓶子 píng zi n2 bottle, jar #个 @home
 肥皂 féi zào n3 soap #块 @home
 牙膏 yá gāo n3 toothpaste #支 @home
+`);
+  W.push(`
+// ---- DX-CJK (the B2 round, 2026-11-27): words the letters and debates asked for (game/words_needed.txt)
+学会 xué huì v2 learn (and be able to), master
+学到 xué dào v3 learn, pick up (knowledge)
+豆沙 dòu shā n4 sweet red bean paste @food
+莲蓉 lián róng n4 lotus seed paste @food
+赏月 shǎng yuè v4 admire the moon (at Mid-Autumn) @nature
+青菜 qīng cài n3 leafy greens #棵,把 @food
+合不拢嘴 hé bù lǒng zuǐ phrase4 can't stop smiling @feeling
+姑姑 gū gu n3 aunt (father's sister) #个,位 @family,people
+夜 yè n3 night @time
+主厨 zhǔ chú n4 head chef #个,位 @work,food
+居然 jū rán adv4 to one's surprise, actually
+办 bàn v3 do, handle; hold (a party)
+派对 pài duì n3 party #个,场 @hobby
+渔歌 yú gē n4 fishing song #首 @music
+面馆 miàn guǎn n3 noodle shop #家,个 @food,shop
+徒弟 tú dì n4 apprentice #个,位 @work,people
+粗 cū adj3 thick, coarse
+像样 xiàng yàng adj4 decent, presentable +
+妈 mā n2 mom @family,people
+暖 nuǎn adj3 warm +
+兰州 Lán zhōu name3 Lanzhou @place
+昆明 Kūn míng name3 Kunming @place
+普洱 Pǔ ěr name4 Pu'er (a town in Yunnan) @place
+茶篓 chá lǒu n4 tea-picking basket #个 @drink
+觉 jiào n3 sleep («睡不着觉»: can't sleep)
+年纪 nián jì n3 age (of a person)
+烧 shāo v3 burn; cook, roast
+柴 chái n4 firewood #根 @nature
+自由 zì yóu n3 freedom; free +
+急 jí adj3 in a hurry, anxious; urgent
+快递 kuài dì n3 express delivery, courier #个,件 @shop
+快餐 kuài cān n3 fast food #份 @food
+整 zhěng adj3 whole, entire
+边 biān n3 side, edge
+可 kě adv3 (for emphasis) really, do
+规律 guī lǜ n4 pattern, rule; regular (生活很规律)
+取消 qǔ xiāo v3 cancel, do away with
+摆 bǎi v3 set out, put; display
+校医 xiào yī n4 school doctor, school nurse #个,位 @school,health
+红薯 hóng shǔ n3 sweet potato #个,块 @food
+管 guǎn v3 manage, be in charge of; mind
+卫生 wèi shēng n3 hygiene; clean
+公平 gōng píng adj3 fair +
+证 zhèng n4 certificate, card (卫生证, 学生证) #张,个
+// ---- measure words (B1–B2)
+名#cl míng cl3 (people, formal: 一名学生) %ppl
+项 xiàng cl4 (items, tasks, rules)
+笔#cl bǐ cl4 a sum of (money) %part
+批 pī cl4 a batch of, a group of %part
+堆 duī cl4 a pile of, a heap of %part
+串 chuàn cl4 a string of, a bunch of %part
+届 jiè cl4 (sessions, graduating classes)
+排#cl pái cl4 a row of %part
+组#cl zǔ cl4 a group of, a set of %part
+// ---- work and careers
+职位 zhí wèi n4 position, post #个 @work
+简历 jiǎn lì n4 résumé, CV #份 @work
+招聘 zhāo pìn v4 recruit, hire @work
+应聘 yìng pìn v4 apply for a job @work
+录取 lù qǔ v4 admit, accept (to a school or a job) @school,work
+奖金 jiǎng jīn n4 bonus, prize money #笔 @money,work
+休假 xiū jià v4 take time off, be on holiday @work
+员工 yuán gōng n3 employee, staff #个,名,位 @work,people
+职员 zhí yuán n4 office worker, clerk #个,名,位 @work,people
+秘书 mì shū n4 secretary #个,位 @work,people
+会计 kuài jì n4 accountant; accounting #个,位 @work,money
+编辑 biān jí n4 editor; edit #个,位 @work
+设计师 shè jì shī n4 designer #个,位 @work,art
+程序员 chéng xù yuán n4 programmer #个,名 @work,tech
+领导 lǐng dǎo n3 leader, boss; lead #个,位 @work
+企业 qǐ yè n4 company, enterprise #家,个 @work
+行业 háng yè n4 industry, line of business #个 @work
+部门 bù mén n4 department #个 @work
+团队 tuán duì n4 team #个,支 @work
+效率 xiào lǜ n4 efficiency @work
+合同 hé tong n4 contract #份 @work
+失业 shī yè v4 lose one's job, be unemployed - @work
+就业 jiù yè v4 find work; employment @work
+兼职 jiān zhí n4 part-time job #份,个 @work
+全职 quán zhí adj4 full-time @work %ng
+升职 shēng zhí v4 be promoted @work
+培训 péi xùn v4 train (staff); training @work
+实习 shí xí v4 do an internship @work,school
+业务 yè wù n4 business, line of work #项 @work
+客户 kè hù n4 client, customer #个,位 @work,shop
+项目 xiàng mù n4 project; item #个,项 @work
+成就 chéng jiù n4 achievement #个,项
+优势 yōu shì n4 advantage, strength #个
+汇报 huì bào v4 report (to a boss) @work
+职场 zhí chǎng n4 the workplace @work
+工作日 gōng zuò rì n4 working day @work,time
+能干 néng gàn adj4 capable, able +
+专家 zhuān jiā n4 expert #个,位 @people
+退休金 tuì xiū jīn n4 pension #笔,份 @money,work
+农民工 nóng mín gōng n4 migrant worker #个,名 @work,people
+// ---- health and the body
+疾病 jí bìng n4 illness, disease #种 @health
+病毒 bìng dú n4 virus #种 @health,tech
+细菌 xì jūn n4 germs, bacteria #种 @health
+感染 gǎn rǎn v4 infect; get infected @health
+伤口 shāng kǒu n4 wound, cut #个,道 @health,body
+骨头 gǔ tou n3 bone @body
+血 xuè n3 blood #滴 @body
+心脏 xīn zàng n4 heart (the organ) #颗,个 @body,health
+肺 fèi n4 lung #个 @body
+胃 wèi n4 stomach #个 @body
+肌肉 jī ròu n4 muscle #块 @body
+大脑 dà nǎo n4 brain #个 @body
+嗓子 sǎng zi n3 throat; voice #个 @body
+肩膀 jiān bǎng n3 shoulder #个 @body
+膝盖 xī gài n4 knee #个 @body
+腰 yāo n3 waist, lower back @body
+胸 xiōng n4 chest @body
+手术 shǒu shù n4 operation, surgery #个,次,台 @health
+病人 bìng rén n3 patient, sick person #个,位 @health,people
+诊所 zhěn suǒ n4 clinic #家,个 @health,place
+药店 yào diàn n3 pharmacy #家,个 @health,shop
+挂号 guà hào v4 register (at a hospital) @health
+康复 kāng fù v4 get well, recover (fully) @health
+预防 yù fáng v4 prevent @health
+营养 yíng yǎng n4 nutrition @health,food
+睡眠 shuì mián n4 sleep @health
+失眠 shī mián v4 can't sleep, have insomnia - @health
+过敏 guò mǐn v4 be allergic; allergy @health
+症状 zhèng zhuàng n4 symptom #个,种 @health
+体重 tǐ zhòng n4 body weight @health,body
+身高 shēn gāo n3 height (of a person) @body
+心理 xīn lǐ n4 psychology, state of mind @health
+疲劳 pí láo adj4 tired, fatigued - @health
+痛苦 tòng kǔ adj4 painful, suffering - @feeling
+健身房 jiàn shēn fáng n3 gym #家,个 @sport,place
+救护车 jiù hù chē n4 ambulance #辆 @health,transport
+急诊 jí zhěn n4 emergency (room) @health
+医疗 yī liáo n4 medical care @health
+保险 bǎo xiǎn n4 insurance #份 @money,health
+呼吸 hū xī v4 breathe; breathing @body,health
+晕 yūn v4 feel dizzy; faint @health
+吐 tù v4 vomit, throw up @health
+去世 qù shì v4 pass away @people
+寿命 shòu mìng n4 lifespan @health
+体检 tǐ jiǎn n4 physical checkup #次 @health
+牙医 yá yī n3 dentist #个,位 @health,work
+近视 jìn shì adj4 nearsighted @health,body
+// ---- compounds the game's lines use, so new single characters don't split them (边境, not 边 + 境)
+就是 jiù shì v1 is just, is exactly; that is %cop,st
+包#v bāo v2 wrap; make (dumplings: 包饺子)
+心里 xīn lǐ n2 in one's heart, in one's mind
+排#v pái v4 line up; put in order
+成 chéng v3 become, turn into; (成了) it worked
+刷 shuā v3 brush; paint
+保管 bǎo guǎn v4 keep, look after (something)
+等级 děng jí n3 level, grade (the Academy's level exams) #个
+排练 pái liàn v4 rehearse
+命名 mìng míng v4 name (after)
+摆渡 bǎi dù v4 ferry (people across)
+沼泽 zhǎo zé n4 marsh, swamp #片 @nature,place
+边境 biān jìng n4 border, frontier @place
+夜市 yè shì n3 night market #个 @shop,town
+可疑 kě yí adj4 suspicious
+燃烧 rán shāo v4 burn
+沙堆 shā duī n4 pile of sand @nature
+泉 quán n4 spring (of water) @nature
+咋 zǎ adv4 how, why (casual, in the north)
+扎 zhā v4 prick; dive into
+冒 mào v4 give off, rise (smoke, steam); brave (a risk)
+悬崖 xuán yá n4 cliff #个,座 @nature,place
+石堤 shí dī n4 stone dike #条,道 @place
+字迹 zì jì n4 handwriting
+四川 Sì chuān name3 Sichuan @place
+名人 míng rén n4 famous person, celebrity #个,位 @people
+辈子 bèi zi n4 lifetime («这辈子»: in this life)
+邮差 yóu chāi n4 mail carrier #个,位 @work,people
+缩 suō v4 shrink, curl up
+成立 chéng lì v4 found, set up
+压 yā v4 press, push down
+忍 rěn v4 bear, put up with
+小猫 xiǎo māo n2 kitten #只 @animal
+灯塔岛 Dēng tǎ dǎo name4 Lighthouse Island @place,hush
+// ---- the two B1 jobs (A2's «life jobs» lines in words_needed.txt)
+采访 cǎi fǎng v4 interview (for the news) @work
+访客 fǎng kè n4 visitor #位,个 @people
+中级 zhōng jí adj4 intermediate (level) %ng @school
+柜台 guì tái n3 counter (in a shop or an office) #个 @shop
+招 zhāo v4 recruit, take on; wave (to someone)
+整个 zhěng gè det3 whole, entire
+改 gǎi v3 change, correct
+房 fáng n4 room; house («四号房») #间
+含 hán v4 contain («不含坚果»: no nuts in it)
+坚果 jiān guǒ n4 nut(s) #颗 @food
+借书证 jiè shū zhèng n4 library card #张 @school
+隔壁 gé bì n3 next door @home,place
+走廊 zǒu láng n4 corridor, hall #条 @home
+邮船 yóu chuán n4 mail boat #艘,条 @transport
+稍等 shāo děng phrase3 one moment, please
+查 chá v3 check, look up
+话语 huà yǔ n4 words, speech
+进步 jìn bù v3 improve, make progress; progress +
+辩论 biàn lùn v4 debate; argue #场
+疑问 yí wèn n4 question, doubt #个
+话筒 huà tǒng n4 microphone #个 @tech
+直播 zhí bō v4 broadcast live, stream live @tech
+念 niàn v3 read aloud; miss (someone)
+播 bō v4 broadcast, put on (the radio) @tech
+记下 jì xià v3 note down, write down
+传 chuán v3 pass on, spread («传到»: reach)
+转述 zhuǎn shù v4 relay, report (what someone said)
+稿子 gǎo zi n4 draft, news copy #篇,份,条
+配方 pèi fāng n4 recipe, formula #个
+倍 bèi cl4 times, -fold («多一倍»: twice as many) %part
+豆角 dòu jiǎo n4 green beans @food
+菜园 cài yuán n4 vegetable garden #个,块 @nature
+丰收 fēng shōu n4 a good harvest +
+全校 quán xiào n4 the whole school @school
+图书管理员 tú shū guǎn lǐ yuán n4 librarian #个,位 @work,people
+读者 dú zhě n3 reader #个,位 @people
+生 shēng v3 give birth to; be born («生了五只小猫»)
+眼 yǎn n3 eye (in compounds: 眼里) @body
+眼#cl yǎn cl4 a look («看了我一眼») %part
+贴 tiē v4 stick, put up (a notice)
+海报 hǎi bào n4 poster #张 @art
+队 duì n3 team; line (of people) #个,支 @sport
+领先 lǐng xiān v4 lead, be ahead
+船身 chuán shēn n4 (a boat's) hull; a boat length
+银河 yín hé n4 the Milky Way @nature
+航线 háng xiàn n4 route (of a boat or a plane) #条 @transport
+组织者 zǔ zhī zhě n4 organizer #个,位 @people
+期待 qī dài v4 look forward to, expect @feeling
+诗歌 shī gē n4 poetry, poems #首 @art
+镇上 zhèn shang n3 in town @town
+错误 cuò wù n3 mistake, error #个 -
+记 jì v3 remember; write down
+生效 shēng xiào v4 take effect
+回合 huí hé cl4 round, turn (in a fight or a game: 三回合) %part
+小事 xiǎo shì n3 small matter, trifle #件
+再见面 zài jiàn miàn v3 meet again (not 再见 + 面)
+只能 zhǐ néng adv2 can only, have to
+上船 shàng chuán v3 get on a boat, board @transport
+下船 xià chuán v3 get off a boat @transport
+提到 tí dào v3 mention
+粽叶 zòng yè n4 bamboo leaves (for zongzi) @food
+市政府 shì zhèng fǔ n4 city government, city hall @town
+镇政府 zhèn zhèng fǔ n4 town hall, town government @town
+地里 dì li n2 in the field(s) @nature
+屋里 wū li n2 in the room, indoors @home
+好几 hǎo jǐ num3 quite a few, several
+总 zǒng adv2 always; (in) total; after all
+另一半 lìng yī bàn n4 the other half; (someone's) partner
+班#cl bān cl3 (a scheduled run: 这班车, 一班船) %part
+中心 zhōng xīn n3 center #个 @place
+清洁工 qīng jié gōng n3 cleaner, street sweeper #个,位 @work,people
+织 zhī v3 knit, weave @hobby
+煤气 méi qì n4 (cooking) gas @home
+悬念 xuán niàn n4 suspense
+招式 zhāo shì n4 move (in martial arts) #个,套 @sport
+绝招 jué zhāo n4 special move, secret trick #个
+亲眼 qīn yǎn adv4 with one's own eyes
+暖气 nuǎn qì n3 heating @home
+`);
+  W.push(`
+// ---- news and media (B1–B2)
+媒体 méi tǐ n4 the media @tech
+报道 bào dào v4 report (the news); a report #篇,条 @tech
+电视台 diàn shì tái n3 TV station #家,个 @tech
+频道 pín dào n4 (TV) channel #个 @tech
+主持人 zhǔ chí rén n4 host, presenter #个,位 @work,people
+标题 biāo tí n4 headline, title #个
+宣传 xuān chuán v4 publicize, promote
+发表 fā biǎo v4 publish; give (a speech)
+出版 chū bǎn v4 publish (a book) @story
+事件 shì jiàn n4 event, incident #个
+事故 shì gù n3 accident #个,场 -
+社交 shè jiāo n4 social life, socializing
+播放 bō fàng v4 play, broadcast @tech
+真相 zhēn xiàng n4 the truth (of what happened) #个
+谣言 yáo yán n4 rumor #个,条 -
+公开 gōng kāi adj4 public, open; make public
+报告 bào gào n3 report; report on #份,个
+统计 tǒng jì v4 count up; statistics
+数据 shù jù n4 data #个,组 @tech
+最新 zuì xīn adj3 latest, newest %ng
+热门 rè mén adj4 popular, in demand %ng
+话题 huà tí n3 topic (of conversation) #个
+头条 tóu tiáo n4 headline, top story #个,条
+记录 jì lù v3 record, write down; a record #个,项
+纪录片 jì lù piàn n4 documentary #部 @art
+电视剧 diàn shì jù n3 TV series #部 @art
+舆论 yú lùn n4 public opinion
+网红 wǎng hóng n4 internet celebrity #个,位 @tech,people
+点赞 diǎn zàn v4 like (a post) @tech
+转发 zhuǎn fā v4 share, forward (a post) @tech
+关注 guān zhù v4 follow; pay attention to @tech
+评价 píng jià v4 evaluate, judge; an assessment #个
+报社 bào shè n4 newspaper office #家,个 @work
+爆炸 bào zhà v4 explode; explosion -
+失踪 shī zōng v4 go missing -
+现场 xiàn chǎng n4 the scene, on the spot @place
+紧急 jǐn jí adj4 urgent, emergency
+// ---- environment and climate
+气候 qì hòu n3 climate @weather,nature
+全球 quán qiú n4 the whole world, global @place
+资源 zī yuán n4 resources #种 @nature
+能源 néng yuán n4 energy (source) #种 @nature
+回收 huí shōu v4 recycle; collect back @nature
+塑料 sù liào n4 plastic @home
+雾霾 wù mái n4 smog @weather
+排放 pái fàng v4 give off, emit (gases)
+灾害 zāi hài n4 disaster #场,种 @nature -
+地震 dì zhèn n3 earthquake #场,次 @nature -
+台风 tái fēng n4 typhoon #场,个 @weather
+暴雨 bào yǔ n4 rainstorm #场 @weather
+物种 wù zhǒng n4 species #个,种 @nature,animal
+灭绝 miè jué v4 die out, become extinct -
+生态 shēng tài n4 ecology @nature
+太阳能 tài yáng néng n4 solar energy @nature
+石油 shí yóu n4 oil, petroleum @nature
+煤 méi n4 coal @nature
+环保 huán bǎo adj4 green, eco-friendly; protecting the environment %ng +
+砍 kǎn v4 chop, cut down
+野生 yě shēng adj4 wild (animals, plants) %ng @nature,animal
+可持续 kě chí xù adj4 sustainable %ng @nature
+降温 jiàng wēn v4 cool down; the temperature drops @weather
+升温 shēng wēn v4 warm up; the temperature rises @weather
+雪山 xuě shān n3 snowy mountain #座 @nature
+河流 hé liú n4 river #条 @nature
+湖泊 hú pō n4 lake #个 @nature
+草原 cǎo yuán n3 grassland, prairie #片 @nature
+土壤 tǔ rǎng n4 soil @nature
+水源 shuǐ yuán n4 water source @nature
+缺水 quē shuǐ v4 be short of water @nature
+节能 jié néng v4 save energy @nature
+低碳 dī tàn adj4 low-carbon %ng @nature
+绿化 lǜ huà v4 plant trees and grass, make greener @nature
+塑料袋 sù liào dài n3 plastic bag #个 @shop
+分类 fēn lèi v4 sort, classify («垃圾分类»: sorting rubbish)
+保护区 bǎo hù qū n4 nature reserve #个 @nature,place
+雨林 yǔ lín n4 rainforest #片 @nature
+极端 jí duān adj4 extreme
+// ---- technology and the internet
+科技 kē jì n4 science and technology @tech
+网页 wǎng yè n4 web page #个 @tech
+软件 ruǎn jiàn n4 software, app #个 @tech
+硬件 yìng jiàn n4 hardware @tech
+程序 chéng xù n4 (computer) program; procedure #个 @tech
+键盘 jiàn pán n4 keyboard #个 @tech
+鼠标 shǔ biāo n4 (computer) mouse #个 @tech
+屏幕 píng mù n4 screen #块,个 @tech
+账号 zhàng hào n4 (online) account #个 @tech
+登录 dēng lù v4 log in @tech
+上传 shàng chuán v4 upload @tech
+搜索 sōu suǒ v4 search (online) @tech
+点击 diǎn jī v4 click @tech
+输入 shū rù v4 type in, enter @tech
+删除 shān chú v4 delete @tech
+保存 bǎo cún v4 save, keep @tech
+复制 fù zhì v4 copy @tech
+文件 wén jiàn n3 file, document #个,份 @tech,work
+数码 shù mǎ adj4 digital %ng @tech
+智能 zhì néng adj4 smart, intelligent %ng @tech
+人工智能 rén gōng zhì néng n4 artificial intelligence @tech
+机器人 jī qì rén n4 robot #个,台 @tech
+机器 jī qì n3 machine #台,个 @tech
+设备 shè bèi n4 equipment, device #台,个,套 @tech
+充电 chōng diàn v3 charge (a battery) @tech
+无线 wú xiàn adj4 wireless %ng @tech
+黑客 hēi kè n4 hacker #个,名 @tech,people
+网购 wǎng gòu v4 shop online @tech,shop
+应用 yìng yòng v4 apply, use; app #个 @tech
+功能 gōng néng n4 function, feature #个,种 @tech
+系统 xì tǒng n4 system #个,套 @tech
+版本 bǎn běn n4 version #个 @tech
+更新 gēng xīn v4 update @tech
+升级 shēng jí v4 upgrade @tech
+实验 shí yàn n4 experiment #个,次 @school
+图片 tú piàn n3 picture, image #张 @tech
+自拍 zì pāi v4 take a selfie @tech
+网友 wǎng yǒu n4 online friend, internet user #个,位 @tech,people
+博客 bó kè n4 blog #个 @tech
+粉丝 fěn sī n4 fan(s), followers #个,位 @tech,people
+平板 píng bǎn n4 tablet (computer) #个,台 @tech
+电子 diàn zǐ adj4 electronic %ng @tech
+在线 zài xiàn adj4 online %ng @tech
+离线 lí xiàn adj4 offline %ng @tech
+链接 liàn jiē n4 link #个,条 @tech
+二维码 èr wéi mǎ n4 QR code #个 @tech
+充电器 chōng diàn qì n4 charger #个 @tech
+耳机 ěr jī n3 headphones, earphones #副,个 @tech
+网速 wǎng sù n4 internet speed @tech
+流量 liú liàng n4 (mobile) data; flow @tech
+发明家 fā míng jiā n4 inventor #个,位 @people
+操作 cāo zuò v4 operate, work (a machine)
+安装 ān zhuāng v4 install @tech
+卸载 xiè zài v4 uninstall @tech
+电子书 diàn zǐ shū n4 e-book #本 @tech
+游戏机 yóu xì jī n4 game console #台,个 @tech,hobby
+硬盘 yìng pán n4 hard drive #个,块 @tech
+`);
+  W.push(`
+// ---- society and community, everyday law
+社区 shè qū n4 community, neighborhood #个 @town
+居民 jū mín n4 resident #个,位 @people,town
+公民 gōng mín n4 citizen #个,位 @people
+人口 rén kǒu n4 population @people
+政府 zhèng fǔ n4 government @town
+法院 fǎ yuàn n4 court (of law) #个,家 @place
+派出所 pài chū suǒ n4 police station #个,家 @place
+犯罪 fàn zuì v4 commit a crime; crime -
+小偷 xiǎo tōu n3 thief #个,名 @people -
+抢劫 qiǎng jié v4 rob -
+骗子 piàn zi n4 cheat, swindler #个 @people -
+违法 wéi fǎ v4 break the law; illegal -
+合法 hé fǎ adj4 legal, lawful
+罚款 fá kuǎn v4 fine; a fine #笔 @money
+权利 quán lì n4 right(s) #项,个
+义务 yì wù n4 duty, obligation #项,个
+平等 píng děng adj4 equal +
+证据 zhèng jù n4 evidence, proof #个,条
+身份证 shēn fèn zhèng n4 ID card #张 @travel
+登记 dēng jì v4 register, check in
+投票 tóu piào v4 vote
+选举 xuǎn jǔ n4 election #次,场
+捐 juān v4 donate, give
+慈善 cí shàn n4 charity
+贫穷 pín qióng adj4 poor; poverty -
+老年人 lǎo nián rén n3 old people, the elderly #个,位 @people
+年轻人 nián qīng rén n3 young people #个 @people
+习俗 xí sú n4 custom #个,种
+宗教 zōng jiào n4 religion #个,种
+公共 gōng gòng adj4 public %ng @town
+设施 shè shī n4 facilities #个,种 @town
+矛盾 máo dùn n4 contradiction, conflict #个 -
+冲突 chōng tū n4 conflict, clash #个,场 -
+现象 xiàn xiàng n4 phenomenon #个,种
+改革 gǎi gé v4 reform
+制度 zhì dù n4 system (of rules) #个,种
+政策 zhèng cè n4 policy #个,项
+和平 hé píng n4 peace +
+战争 zhàn zhēng n4 war #场 -
+军队 jūn duì n4 army, troops #支 @people
+士兵 shì bīng n4 soldier #个,名 @people
+道德 dào dé n4 morals, ethics
+法官 fǎ guān n4 judge #个,位 @work,people
+房东 fáng dōng n4 landlord #个,位 @home,people
+押金 yā jīn n4 deposit #笔 @money,home
+签名 qiān míng v4 sign (your name); signature
+手续 shǒu xù n4 procedures, formalities
+证书 zhèng shū n4 certificate #张,个 @school
+执照 zhí zhào n4 license (to practice) #张,个
+驾照 jià zhào n4 driver's license #本,张 @transport
+罚 fá v4 punish, fine
+抗议 kàng yì v4 protest
+规则 guī zé n3 rule #条,个
+秩序 zhì xù n4 order (in a place, a crowd)
+文明 wén míng n4 civilization; civilized, polite
+公益 gōng yì n4 public good, charity work
+捐款 juān kuǎn v4 donate money; a donation #笔 @money
+救助 jiù zhù v4 help, rescue (people in need)
+残疾人 cán jí rén n4 disabled person #个,位 @people
+孤儿 gū ér n4 orphan #个 @people
+养老 yǎng lǎo v4 provide for the elderly; live in retirement
+养老院 yǎng lǎo yuàn n4 home for the elderly #家,个 @place
+福利 fú lì n4 welfare, benefits
+待遇 dài yù n4 pay and conditions; treatment
+纠纷 jiū fēn n4 dispute #个,场 -
+起诉 qǐ sù v4 sue -
+判决 pàn jué v4 rule (in court); a verdict
+监狱 jiān yù n4 prison #个,座 @place -
+逮捕 dài bǔ v4 arrest -
+案件 àn jiàn n4 (legal) case #个
+报警 bào jǐng v4 call the police
+偷窃 tōu qiè v4 steal; theft -
+邻里 lín lǐ n4 neighbors, the neighborhood @people
+物业 wù yè n4 property management #家,个 @home
+投诉 tóu sù v4 complain (officially); a complaint
+赔偿 péi cháng v4 compensate; compensation @money
+违反 wéi fǎn v4 break (a rule), violate -
+批准 pī zhǔn v4 approve, permit
+团体 tuán tǐ n4 group, organization #个
+协会 xié huì n4 association #个
+成员 chéng yuán n4 member #个,名,位 @people
+会员 huì yuán n4 member (of a club) #个,名,位 @people
+// ---- education and science
+学历 xué lì n4 education (level), qualifications @school
+学位 xué wèi n4 (university) degree #个 @school
+硕士 shuò shì n4 master's degree; master's student #个,位 @school
+博士 bó shì n4 doctorate, PhD; doctor (title) #个,位 @school
+本科 běn kē n4 undergraduate (course) @school
+研究生 yán jiū shēng n4 graduate student #个,名 @school,people
+课本 kè běn n3 textbook #本 @school
+教材 jiào cái n4 teaching materials, textbook #本,套 @school
+分数 fēn shù n3 mark, score; fraction #个 @school
+及格 jí gé v3 pass (a test) @school
+学问 xué wen n4 learning, knowledge
+理论 lǐ lùn n4 theory #个,种
+实践 shí jiàn v4 practice, put into practice
+物理 wù lǐ n4 physics @school
+化学 huà xué n4 chemistry @school
+生物 shēng wù n4 biology; living things @school,nature
+地理 dì lǐ n3 geography @school
+哲学 zhé xué n4 philosophy @school
+心理学 xīn lǐ xué n4 psychology @school
+文学 wén xué n3 literature @school,story
+词汇 cí huì n4 vocabulary @language
+单词 dān cí n3 word (in a vocabulary list) #个 @language
+结论 jié lùn n4 conclusion #个
+观点 guān diǎn n4 point of view #个,种
+步骤 bù zhòu n4 step (in a process) #个
+实验室 shí yàn shì n4 laboratory #个,间 @school,place
+学术 xué shù n4 academic (work), scholarship
+论文 lùn wén n4 thesis, paper #篇 @school
+题目 tí mù n3 topic, title; question #个,道 @school
+提问 tí wèn v3 ask a question
+掌握 zhǎng wò v4 master, grasp
+宇宙 yǔ zhòu n4 universe @nature
+星球 xīng qiú n4 planet #个,颗 @nature
+太空 tài kōng n4 outer space @nature
+月球 yuè qiú n4 the moon (as a body in space) @nature
+科幻 kē huàn n4 science fiction @story
+公式 gōng shì n4 formula #个 @school
+计算 jì suàn v4 calculate, count
+测量 cè liáng v4 measure
+证实 zhèng shí v4 confirm, prove
+假设 jiǎ shè v4 suppose; hypothesis
+原理 yuán lǐ n4 principle #个
+智力 zhì lì n4 intelligence
+天才 tiān cái n4 genius #个 +
+进修 jìn xiū v4 take further training
+课堂 kè táng n3 classroom; class #个 @school
+讲座 jiǎng zuò n4 lecture, talk #个,场 @school
+幼儿园 yòu ér yuán n3 kindergarten #个,所 @school
+高中 gāo zhōng n3 high school #个,所 @school
+初中 chū zhōng n3 middle school #个,所 @school
+学院 xué yuàn n3 college, academy #个,所 @school
+班级 bān jí n4 class (a group of students) #个 @school
+教练 jiào liàn n3 coach, trainer #个,位 @sport,people
+辅导 fǔ dǎo v4 tutor, coach
+补习 bǔ xí v4 take extra lessons
+考上 kǎo shàng v4 get into (a school, by passing its exam)
+毕业生 bì yè shēng n4 graduate #个,名 @school,people
+文凭 wén píng n4 diploma #张,个 @school
+奖状 jiǎng zhuàng n4 certificate of merit #张 @school
+`);
+  W.push(`
+// ---- opinions and abstract ideas, and the words of arguing and linking
+立场 lì chǎng n4 standpoint, position
+否定 fǒu dìng v4 deny, reject; negative
+显然 xiǎn rán adv4 obviously, clearly
+似乎 sì hū adv3 it seems, apparently
+毕竟 bì jìng adv3 after all
+反而 fǎn ér adv3 on the contrary, instead
+必要 bì yào adj4 necessary %ng
+基本 jī běn adj3 basic; basically
+具体 jù tǐ adj4 specific, concrete
+抽象 chōu xiàng adj4 abstract
+明显 míng xiǎn adj4 obvious, clear
+合理 hé lǐ adj4 reasonable, sensible +
+消极 xiāo jí adj4 negative, passive -
+乐观 lè guān adj4 optimistic +
+悲观 bēi guān adj4 pessimistic -
+客观 kè guān adj4 objective
+主观 zhǔ guān adj4 subjective
+坏处 huài chu n3 disadvantage, harm #个 -
+意义 yì yì n4 meaning, significance #个
+价值 jià zhí n4 value, worth #个
+事实 shì shí n4 fact #个
+现实 xiàn shí n4 reality; realistic
+角度 jiǎo dù n4 angle, point of view #个
+程度 chéng dù n4 degree, extent
+范围 fàn wéi n4 range, scope #个
+因素 yīn sù n4 factor #个
+相同 xiāng tóng adj3 the same, identical %ng
+类似 lèi sì adj4 similar %ng
+相比 xiāng bǐ v4 compare (with)
+对比 duì bǐ v4 contrast, compare; a contrast
+总的来说 zǒng de lái shuō phrase4 all in all, overall %conj
+另一方面 lìng yī fāng miàn conj4 on the other hand %conj
+从而 cóng ér conj4 thus, and so %conj
+而是 ér shì conj4 but rather (不是…而是…) %conj
+可见 kě jiàn conj4 so you can see that, which shows %conj
+总而言之 zǒng ér yán zhī phrase4 in a word, in short %conj
+换句话说 huàn jù huà shuō phrase4 in other words %conj
+也就是说 yě jiù shì shuō phrase4 that is to say %conj
+除此之外 chú cǐ zhī wài phrase4 apart from this, besides %conj
+与此同时 yǔ cǐ tóng shí phrase4 at the same time, meanwhile %conj
+哪怕 nǎ pà conj4 even if %conj,hypo
+除非 chú fēi conj4 unless %conj,hypo
+以免 yǐ miǎn conj4 so as not to, lest %conj
+因而 yīn ér conj4 thus, as a result %conj
+况且 kuàng qiě conj4 moreover, besides %conj
+何况 hé kuàng conj4 let alone, all the more %conj
+或许 huò xǔ adv4 perhaps, maybe
+在我看来 zài wǒ kàn lái phrase3 in my view %conj
+据说 jù shuō v4 it is said, they say
+据 jù prep4 according to
+至于 zhì yú prep4 as for, as to
+一旦 yī dàn conj4 once, if ever %conj,hypo
+不如 bù rú v3 not as good as; might as well
+与其 yǔ qí conj4 rather than (与其…不如…) %conj
+宁可 nìng kě conj4 would rather %conj
+不然 bù rán conj3 otherwise, or else %conj
+加上 jiā shàng conj4 plus, on top of that %conj
+反正 fǎn zhèng adv4 anyway, in any case
+幸亏 xìng kuī adv4 luckily, fortunately
+简直 jiǎn zhí adv4 simply, practically
+绝对 jué duì adv4 absolutely
+相对 xiāng duì adv4 relatively
+整体 zhěng tǐ n4 the whole, overall
+集体 jí tǐ n4 group, collective
+自我 zì wǒ n4 self, oneself
+观念 guān niàn n4 idea, way of thinking #个,种
+思想 sī xiǎng n4 thought, thinking #个,种
+原则 yuán zé n4 principle #个,条
+// ---- feelings
+情绪 qíng xù n4 mood, emotions @feeling
+愤怒 fèn nù adj4 angry, furious - @feeling
+烦 fán adj4 annoyed, fed up - @feeling
+委屈 wěi qu adj4 wronged, hurt - @feeling
+惭愧 cán kuì adj4 ashamed - @feeling
+尴尬 gān gà adj4 awkward, embarrassed - @feeling
+自豪 zì háo adj4 proud + @feeling
+满足 mǎn zú v4 satisfy; satisfied + @feeling
+嫉妒 jí dù v4 be jealous (of), envy - @feeling
+恨 hèn v4 hate - @feeling
+好奇 hào qí adj3 curious @feeling
+安心 ān xīn adj4 at ease, with peace of mind + @feeling
+不安 bù ān adj4 uneasy, anxious - @feeling
+恐惧 kǒng jù n4 fear, dread - @feeling
+心疼 xīn téng v4 feel for, hate to see (someone hurt); love dearly @feeling
+感受 gǎn shòu n4 feeling, experience; feel @feeling
+冷淡 lěng dàn adj4 cold, indifferent - @feeling
+郁闷 yù mèn adj4 down, frustrated - @feeling
+沮丧 jǔ sàng adj4 dejected, low - @feeling
+珍惜 zhēn xī v4 treasure, cherish + @feeling
+怀念 huái niàn v4 miss, remember fondly @feeling
+舍不得 shě bu de v4 hate to part with, can't bear to @feeling
+心动 xīn dòng v4 be tempted; feel your heart beat faster @feeling
+心烦 xīn fán adj4 upset, troubled - @feeling
+内疚 nèi jiù adj4 guilty - @feeling
+感慨 gǎn kǎi v4 be moved, sigh with feeling @feeling
+欣慰 xīn wèi adj4 gratified, relieved + @feeling
+痛快 tòng kuai adj4 delighted, to one's heart's content + @feeling
+激情 jī qíng n4 passion, enthusiasm @feeling
+热爱 rè ài v4 love (deeply) + @feeling
+慌 huāng adj4 flustered, nervous - @feeling
+慌张 huāng zhāng adj4 flustered, in a fluster - @feeling
+忍受 rěn shòu v4 endure, put up with @feeling
+感恩 gǎn ēn v4 be thankful + @feeling
+敬佩 jìng pèi v4 admire, respect + @feeling
+失落 shī luò adj4 let down, feeling lost - @feeling
+开朗 kāi lǎng adj4 cheerful, outgoing + @feeling
+乐意 lè yì v4 be glad to, be willing to + @feeling
+烦躁 fán zào adj4 irritable, restless - @feeling
+`);
+  W.push(`
+// ---- travel, culture and the arts
+航班 háng bān n3 flight #个 @travel
+登机 dēng jī v4 board (a plane) @travel
+降落 jiàng luò v3 land (a plane) @travel
+目的地 mù dì dì n4 destination #个 @travel
+名胜古迹 míng shèng gǔ jì phrase4 famous sights and historic places @travel
+展览 zhǎn lǎn n4 exhibition #个,场 @art
+歌剧 gē jù n4 opera #部,场 @music,art
+戏剧 xì jù n4 drama, theater #部,场 @art
+舞蹈 wǔ dǎo n4 dance #个,段 @art,music
+摄影 shè yǐng v4 take photographs; photography @art,hobby
+诗人 shī rén n4 poet #个,位 @art,people
+风俗 fēng sú n4 custom, folkways #个,种
+特色 tè sè n4 special feature, specialty; distinctive
+当地 dāng dì n3 local; the place itself @place
+外地 wài dì n4 other parts of the country, out of town @place
+国外 guó wài n3 abroad @place,travel
+出国 chū guó v3 go abroad @travel
+住宿 zhù sù n4 accommodation, lodging @travel
+导航 dǎo háng v4 navigate; navigation (on a phone) @tech,travel
+景色 jǐng sè n3 scenery, view @nature,travel
+古老 gǔ lǎo adj4 ancient, age-old
+艺术家 yì shù jiā n4 artist #个,位 @art,people
+风格 fēng gé n4 style #种
+创作 chuàng zuò v4 create (a work of art); creation @art
+导演 dǎo yǎn n4 (film) director #个,位 @art,people
+门票 mén piào n3 admission ticket #张 @travel
+观光 guān guāng v4 go sightseeing @travel
+度假 dù jià v4 go on holiday @travel
+背包 bèi bāo n3 backpack #个 @travel,clothes
+攻略 gōng lüè n4 (travel) guide, tips #个,份 @travel
+古镇 gǔ zhèn n4 old town #个,座 @travel,town
+节奏 jié zòu n4 rhythm, pace @music
+乐队 yuè duì n4 band (of musicians) #个,支 @music
+剧本 jù běn n4 script, play #个,部 @art,story
+角色 jué sè n4 role, character #个 @art,story
+主角 zhǔ jué n4 lead role, main character #个,位 @art,story
+情节 qíng jié n4 plot #个 @story
+结局 jié jú n4 ending, outcome #个 @story
+名著 míng zhù n4 classic (book) #部,本 @story
+油画 yóu huà n4 oil painting #幅,张 @art
+手工 shǒu gōng n4 handmade; handicraft @art,hobby
+陶瓷 táo cí n4 pottery, ceramics @art
+古代 gǔ dài n3 ancient times @time
+当代 dāng dài n4 present-day, contemporary @time
+朝代 cháo dài n4 dynasty #个 @time
+皇帝 huáng dì n4 emperor #个,位 @people
+遗产 yí chǎn n4 heritage; inheritance #份,个
+神话 shén huà n4 myth #个 @story
+故宫 Gù gōng name3 the Forbidden City @place
+// ---- money and shopping
+优惠 yōu huì adj3 discounted, a good deal + @shop,money
+现金 xiàn jīn n3 cash @money
+银行卡 yín háng kǎ n3 bank card #张 @money
+存款 cún kuǎn n4 savings, deposit #笔 @money
+取钱 qǔ qián v3 take out money @money
+汇款 huì kuǎn v4 send money, transfer @money
+贷款 dài kuǎn n4 loan #笔 @money
+利息 lì xī n4 interest (on money) @money
+账单 zhàng dān n4 bill #张,份 @money
+收据 shōu jù n4 receipt #张 @money,shop
+发票 fā piào n4 receipt, invoice #张 @money,shop
+退货 tuì huò v4 return (goods) @shop
+品牌 pǐn pái n4 brand #个 @shop
+商品 shāng pǐn n4 goods, product #件,个,种 @shop
+产品 chǎn pǐn n4 product #个,种,件 @shop,work
+消费 xiāo fèi v4 spend, consume; spending @money
+省钱 shěng qián v3 save money @money
+存钱 cún qián v3 save money (in the bank) @money
+预算 yù suàn n4 budget #个,笔 @money
+投资 tóu zī v4 invest; investment @money
+股票 gǔ piào n4 stock, share #支 @money
+赚钱 zhuàn qián v3 earn money, make money @money,work
+欠 qiàn v4 owe @money
+费用 fèi yòng n4 cost, expenses #笔 @money
+收费 shōu fèi v4 charge (a fee) @money
+纸币 zhǐ bì n4 banknote #张 @money
+送货 sòng huò v4 deliver (goods) @shop
+收银台 shōu yín tái n4 checkout, cash desk #个 @shop
+砍价 kǎn jià v4 haggle, bargain @shop
+讲价 jiǎng jià v4 bargain (over the price) @shop
+划算 huá suàn adj4 worth it, a good deal + @shop,money
+富裕 fù yù adj4 well-off, prosperous + @money
+税 shuì n4 tax @money
+成本 chéng běn n4 cost (of making something) @money,work
+利润 lì rùn n4 profit @money,work
+网店 wǎng diàn n4 online shop #家,个 @shop,tech
+供应 gōng yìng v4 supply
+需求 xū qiú n4 demand, need #个,种
+涨价 zhǎng jià v4 go up in price @shop,money
+降价 jiàng jià v4 go down in price, cut prices @shop,money
+物价 wù jià n4 prices (of things in general) @money
+财富 cái fù n4 wealth, riches #笔 @money
+金钱 jīn qián n4 money (as a thing in life) @money
+找钱 zhǎo qián v4 give change @shop,money
+账户 zhàng hù n4 (bank) account #个 @money
+余额 yú é n4 balance (of an account) @money
+转账 zhuǎn zhàng v4 transfer (money) @money
+支付 zhī fù v4 pay @money
+手续费 shǒu xù fèi n4 service charge, fee #笔 @money
+优惠券 yōu huì quàn n4 coupon #张 @shop
+会员卡 huì yuán kǎ n4 membership card #张 @shop
+积分 jī fēn n4 (reward) points @shop
+售货员 shòu huò yuán n3 shop assistant #个,位,名 @shop,people
+营业 yíng yè v4 do business, be open @shop
+开张 kāi zhāng v4 open for business (a new shop) @shop
+营业时间 yíng yè shí jiān n4 opening hours @shop,time
+打烊 dǎ yàng v4 close for the night (a shop) @shop
+// ---- housing and city life
+住房 zhù fáng n4 housing #套 @home
+出租 chū zū v4 rent out; for rent @home
+装修 zhuāng xiū v4 renovate, do up @home
+电器 diàn qì n4 electrical appliance #件,台 @home,tech
+小区 xiǎo qū n4 housing estate, residential compound #个 @home,town
+市中心 shì zhōng xīn n3 city center @town
+停车 tíng chē v3 park (a car) @transport,town
+停车场 tíng chē chǎng n3 car park, parking lot #个 @transport,town
+人行道 rén xíng dào n4 pavement, sidewalk #条 @town
+建筑 jiàn zhù n4 building, architecture #座,个 @town
+高楼 gāo lóu n4 tall building #座 @town
+大楼 dà lóu n3 (big) building #座 @town
+拥挤 yōng jǐ adj4 crowded - @town
+水电费 shuǐ diàn fèi n4 water and electricity bills #笔 @home,money
+房价 fáng jià n4 house prices @home,money
+胡同 hú tòng n4 hutong, alley #条 @town
+小巷 xiǎo xiàng n4 lane, alley #条 @town
+十字路口 shí zì lù kǒu n3 crossroads #个 @town
+地板 dì bǎn n4 floor #块 @home
+天花板 tiān huā bǎn n4 ceiling @home
+门铃 mén líng n4 doorbell #个 @home
+衣柜 yī guì n3 wardrobe #个 @home
+窗帘 chuāng lián n3 curtain #个 @home
+床单 chuáng dān n3 (bed) sheet #条,张 @home
+牙刷 yá shuā n3 toothbrush #把,支 @home
+吸尘器 xī chén qì n4 vacuum cleaner #台,个 @home
+微波炉 wēi bō lú n4 microwave #台,个 @home,food
+自来水 zì lái shuǐ n4 tap water @home
+居住 jū zhù v4 live, reside @home
+日常 rì cháng adj4 everyday, daily %ng
+租金 zū jīn n4 rent (money) #笔 @home,money
+合租 hé zū v4 share a flat (and the rent) @home
+室友 shì yǒu n3 roommate, flatmate #个,位 @home,people
+`);
+  W.push(`
+// ---- the club books' words (A1's «read» lines in words_needed.txt)
+寓言 yù yán n4 fable #个 @story
+望 wàng v4 look into the distance; hope
+拍 pāi v4 pat, slap; take (a photo), film
+大腿 dà tuǐ n4 thigh @body
+爸 bà n2 dad @family,people
+雪白 xuě bái adj4 snow-white %ng @color
+瘸 qué adj4 lame, limping
+拄 zhǔ v4 lean on (a stick)
+用来 yòng lái v4 be used for
+父子 fù zǐ n4 father and son @family
+人家 rén jiā n4 household, family @people
+钻 zuān v4 squeeze into, burrow; drill
+争 zhēng v4 argue over, quarrel; compete for
+快门 kuài mén n4 shutter (of a camera) @tech
+喷嚏 pēn tì n4 sneeze («打喷嚏») @body,health
+打喷嚏 dǎ pēn tì v4 sneeze @health
+单独 dān dú adv4 alone, on one's own
+年底 nián dǐ n4 the end of the year @time
+怪 guài v3 blame; strange, odd
+本事 běn shi n4 skill, ability
+练 liàn v3 practice, train
+练功 liàn gōng v4 practice martial arts @sport
+悄悄 qiāo qiāo adv4 quietly, secretly
+犯 fàn v4 commit, make (a mistake: 犯错)
+犯错 fàn cuò v4 make a mistake
+靠 kào v4 rely on, live on; lean against
+盆 pén n4 basin, (flower) pot #个 @home
+盆#cl pén cl4 a pot of, a basin of %part
+歪歪扭扭 wāi wāi niǔ niǔ adj4 crooked, wobbly %ng
+网上 wǎng shàng n4 online, on the internet @tech
+勺 sháo n4 spoon #把 @home
+勺#cl sháo cl4 a spoonful of %part
+捏 niē v4 pinch
+称 chēng v4 weigh; call (称为)
+飘 piāo v4 drift, float, waft
+在意 zài yì v4 mind, care about
+一半 yī bàn n3 half
+细 xì adj3 thin, fine
+一模一样 yī mú yī yàng phrase4 exactly alike
+方便面 fāng biàn miàn n3 instant noodles #包,碗 @food
+灵魂 líng hún n4 soul #个
+板凳 bǎn dèng n4 stool, bench #条,个 @home
 `);
   // @@ (more word chunks go above this line)
 })();
