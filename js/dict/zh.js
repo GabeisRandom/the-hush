@@ -327,6 +327,9 @@
       const hanRun = new Array(n + 1).fill(0), pyRun = new Array(n + 1).fill(0);
       for (let i = n - 1; i >= 0; i--) { hanRun[i] = X[i].k === 'han' ? hanRun[i + 1] + 1 : 0; pyRun[i] = X[i].k === 'py' ? pyRun[i + 1] + 1 : 0; }
       const sentStart = i => { for (let q = i - 1; q >= 0; q--) return X[q].k === 'punct' && /[.。!！?？]/.test(X[q].p); return true; };
+      // (after a colon, a quote or an ellipsis a capital may just start what's said: a word that fits the tones typed wins there, a
+      //  name beats a word they don't fit: «“Hēi!”» is 嘿, «：Lǚ cūnzhǎng» is 吕村长)
+      const softStart = i => i > 0 && X[i - 1].k === 'punct' && /[:：“"«「『（(*…]/.test(X[i - 1].p);
       const relax = (j, c, ed) => { if (c < best[j] - 1e-9) { best[j] = c; back[j] = ed; } };
       best[0] = 0;
       for (let i = 0; i < n; i++) {
@@ -394,7 +397,8 @@
           // (a one-syllable surname typed in lowercase is rarely meant: «liú» is 留 before 刘)
           // (a space typed inside a rarer word counts more: «nin yao dian» is 要 点, not 药店; «quan zhidao» 全 知道, not 全职 到)
           const nd = nudge(e);
-          a.push({ e, c: 1 + 0.35 * (e.band - 1) + 0.9 * mis + 0.4 * neut + (e.band === 4 ? 0.6 : e.band === 3 ? 0.45 : 0.15) * gaps - (TOP.has(e.ch) ? 0.2 : 0) - LONGER * (L - 1) + nd + (e.pos === 'name' && L === 1 && !u.cap ? 0.4 : 0), mis, nd });
+          a.push({ e, c: 1 + 0.35 * (e.band - 1) + 0.9 * mis + 0.4 * neut + (e.band === 4 ? 0.6 : e.band === 3 ? 0.45 : 0.15) * gaps - (TOP.has(e.ch) ? 0.2 : 0) - LONGER * (L - 1) + nd + (e.pos === 'name' && L === 1 && !u.cap ? 0.4 : 0) - (e.pos === 'name' && u.cap && !mis && !sentStart(i) ? 0.3 : 0)
+            + (e.auto && mis ? 1.5 : 0), mis, nd });          // (a story's own word read with a tone that isn't its: «tā fàng» is 她放, not 塌方)
         }
         for (const [L, a] of ends) {
           a.sort((x, y) => x.c - y.c || x.e.n - y.e.n);
@@ -409,9 +413,10 @@
           }
         }
         if (u.cap && u.first) {             // a capitalized run (a name typed in pinyin): Maria, Ana
+          // (in mid-sentence a capital is a name over any but the commonest words: «yī zhī Yīn shīfu» is 殷师傅, not 阴)
           let L = 1;
           while (i + L < n && X[i + L].run === u.run) L++;
-          relax(i + L, b + (sentStart(i) ? 3.5 : 1.5), { t: 'name', i, j: i + L });
+          relax(i + L, b + (sentStart(i) ? 3.5 : softStart(i) ? 2 : 1.2), { t: 'name', i, j: i + L });
         }
         relax(i + 1, b + 4, { t: 'unk', i, j: i + 1 });
       }
@@ -448,7 +453,13 @@
         if (t.t !== 'w' || t.cands.length < 2) continue;
         // (a tone you typed that fits a word exactly beats a commoner word it doesn't fit: «shī» is 诗, not 是; «huī» 灰, «zhèn» 镇;
         // unless the words around chose it: «hen hao4» is 很好 with a tone slip, not 很号)
-        if (t.py && t.mis && t.mis[0] > 0 && t.mis.some(m => m === 0) && !(t.nds && t.nds[0] < -0.1)) pick(t, () => true);
+        // (a nudge both words get doesn't count: «yào yóu» is 要游, «liǎng bèi» 两倍, as the tones say)
+        if (t.py && t.mis && t.mis[0] > 0 && t.mis.some(m => m === 0)) {
+          let kb = -1;
+          t.mis.forEach((m, q) => { if (m === 0 && (kb < 0 || (t.nds ? t.nds[q] : 0) < (t.nds ? t.nds[kb] : 0))) kb = q; });
+          const eb = t.cands[kb];
+          if (!(t.nds && t.nds[0] < (t.nds[kb] || 0) - 0.1)) pick(t, e => e === eb);
+        }
         const prev = T[k - 1], next = T[k + 1], nx = E0(next), pv = E0(prev);
         // (a numeral typed toneless right before a verb, an adjective or a little word is rarely the number: «wo jiu lai» is 就;
         // before a noun or a measure word it stays one: «jiu ge ren» 九个人, «san pingguo» 三 苹果, which then lacks its 个)
@@ -459,13 +470,19 @@
           if (['v', 'adj', 'adv', 'pron', 'prep', 'conj', 'part', 'det'].includes(nx.pos)) pick(t, e => e.pos !== 'num');
           else if (nx.pos === 'n' && !nx.fl.ncl && !nx.tags.includes('time')) pick(t, e => e.pos === 'adj' || (e.pos === 'name' && nx.tags.some(g => g === 'people' || g === 'family')));
         }
-        // «zhe» after a verb is 着 (看着书), unless a measure word or a number follows (看这本书)
+        // «zhe» after a verb is 着 (看着书), unless a measure word or a number follows (看这本书); a word before it that can be a verb
+        // is the verb then: «huá zhe chuán» is 划着船, not 滑 这 船
         if (t.py && !X[t.i].tt && t.cands.some(e => e.ch === '着') && t.cands.some(e => e.ch === '这')) {
-          pick(t, e => e.ch === (pv && pv.pos === 'v' && !(nx && (nx.pos === 'cl' || nx.pos === 'num')) && !(next && next.t === 'num') ? '着' : '这'));
+          const canV = !!pv && (pv.pos === 'v' || (prev.t === 'w' && prev.py && prev.cands.some(e => e.pos === 'v')));
+          const zhe = canV && !(nx && (nx.pos === 'cl' || nx.pos === 'num')) && !(next && next.t === 'num');
+          if (zhe && pv.pos !== 'v') pick(prev, e => e.pos === 'v');
+          pick(t, e => e.ch === (zhe ? '着' : '这'));
           continue;
         }
-        // a measure word after a number or 这 (in pinyin only a common one, or one with a noun after it: «zhe shu hen hao» is 这书, not 这束)
-        if (isDet(prev) && t.cands.some(e => e.pos === 'cl' && (!t.py || e.band <= 2 || (nx && nx.pos === 'n')))) { pick(t, e => e.pos === 'cl' && (!t.py || e.band <= 2 || (nx && nx.pos === 'n'))); continue; }
+        // a measure word after a number or 这 (in pinyin only a common one, or one with a noun after it, or an adjective and a noun:
+        // «zhe shu hen hao» is 这书, not 这束; «yì cháng dà yǔ» 一场大雨)
+        const nounNext = !!nx && (nx.pos === 'n' || (nx.pos === 'adj' && !!E0(T[k + 2]) && E0(T[k + 2]).pos === 'n'));
+        if (isDet(prev) && t.cands.some(e => e.pos === 'cl' && (!t.py || e.band <= 2 || nounNext))) { pick(t, e => e.pos === 'cl' && (!t.py || e.band <= 2 || nounNext)); continue; }
         if (E0(t).pos === 'cl' && !isDet(prev)) pick(t, e => e.pos !== 'cl');
         if (!t.py) continue;
         // pinyin: words that sound the same
@@ -568,7 +585,15 @@
         if (en.lex) w.lex = en.lex;
         if (en.val) w.val = en.val;
         if (t.cands.length > 1) w.alts = t.cands.slice(1).map(x => x.id);
-        if (t.py && t.mis && t.mis[0]) w.toneBad = true;
+        // (a tone that doesn't fit, in a short run typed as one word that the list only reads as several words, isn't a tone slip:
+        //  it's a word the list doesn't have: «rènde» 认得 is no 人 + 的 with a wrong tone)
+        if (t.py && t.mis && t.mis[0]) {
+          const run = X[t.i].run;
+          let a = t.i, b = t.j;
+          while (a > 0 && X[a - 1].k === 'py' && X[a - 1].run === run) a--;
+          while (b < X.length && X[b].k === 'py' && X[b].run === run) b++;
+          if (!(b - a >= 2 && b - a <= 4 && (a < t.i || b > t.j))) w.toneBad = true;
+        }
         if (en.pos === 'num' && [...en.ch].every(c => NUMC[c] !== undefined)) w.num = numVal([...en.ch]);
         if (t.py) {
           w.typed = X.slice(t.i, t.j).map(u => (u.tt && u.tone ? CJK.markTone(u.syl, u.tone) : u.syl)).join(''); w.tl = X.slice(t.i, t.j).every(u => !u.tt);
@@ -868,6 +893,8 @@
         if (d.tl && d.lastSyl && (bySyl.get(d.lastSyl) || []).some(e => e.pos === 'cl' && e.syl.length === 1)) continue;
         if (ws[k + 2] && !ws[k + 2].punct && (ws[k + 2].pos === 'n' || ws[k + 2].unknown)) continue;
         if (F(d, 'd') && (has(d, '这', '那', '哪') ? !NE.tags.some(t => THINGS.has(t)) : !has(d, '几', '每'))) continue;
+        // (a number typed with a capital before a person is a surname: «Shí shīfu» 石师傅, «Liǔ xiānsheng» 柳先生)
+        if (d.num != null && /^[A-ZĀÁǍÀĒÉĚÈĪÍǏÌŌÓǑÒŪÚǓÙ]/.test(d.t || '') && (NE.tags.includes('people') || NE.tags.includes('family'))) continue;
         const right = clEntry(NE.cl);
         if (!right) continue;
         const s2 = `${two ? '[两|liǎng]' : S(k)} ${right.lemma} ${S(k + 1)}`;
@@ -2121,8 +2148,8 @@
 警察 jǐng chá n3 police officer #个,位 @work
 厨师 chú shī n4 cook, chef #个,位 @work,food
 面包师 miàn bāo shī n4 baker #个,位 @work,food =w.baker
-农民 nóng mín n4 farmer #个 @work
-工人 gōng rén n4 worker #个 @work
+农民 nóng mín n4 farmer #个,位 @work,people
+工人 gōng rén n4 worker #个,位,名 @work,people
 律师 lǜ shī n3 lawyer #个,位 @work
 记者 jì zhě n3 reporter #个,位 @work
 演员 yǎn yuán n3 actor #个,位 @work,art
@@ -3513,7 +3540,7 @@
 批 pī cl4 a batch of, a group of %part
 堆 duī cl4 a pile of, a heap of %part
 串 chuàn cl4 a string of, a bunch of %part
-届 jiè cl4 (sessions, graduating classes)
+届 jiè cl4 (sessions, graduating classes, events held every year) %part
 排#cl pái cl4 a row of %part
 组#cl zǔ cl4 a group of, a set of %part
 // ---- work and careers
@@ -4302,6 +4329,205 @@
 方便面 fāng biàn miàn n3 instant noodles #包,碗 @food
 灵魂 líng hún n4 soul #个
 板凳 bǎn dèng n4 stool, bench #条,个 @home
+`);
+  W.push(`
+// ---- the radio kit's, the detective serial's and the paper's words (A1's «read: kit / serial / paper zh» lines)
+木匠 mù jiang n4 carpenter #个,位 @people,work
+木工房 mù gōng fáng n4 woodworking shop #个,间,家 @place,work
+捡 jiǎn v4 pick up
+阅览室 yuè lǎn shì n4 reading room #个,间 @place,school
+灭 miè v4 go out (a light, a fire); put out
+集市 jí shì n4 market, fair #个 @place,shop
+换物 huàn wù v4 swap things (换物集市: a swap market)
+音 yīn n4 sound; (musical) note #个 @music
+约 yuē v3 arrange to meet; ask out
+电费 diàn fèi n4 electricity bill @money,home
+人手 rén shǒu n4 staff, hands (人手不够: short-handed) @work
+坚强 jiān qiáng adj4 strong (in spirit), tough +
+围 wéi v4 surround, gather around
+庙会 miào huì n4 temple fair #个,场 @place
+摩天轮 mó tiān lún n4 Ferris wheel #个,座
+灯谜 dēng mí n4 lantern riddle #个,条
+糖葫芦 táng hú lu n4 candied haws on a stick #串,根 @food
+雪仗 xuě zhàng n4 snowball fight (打雪仗) #场 @sport
+清理 qīng lǐ v4 clean up, clear out
+意外 yì wài n3 accident; surprise; unexpected
+金鱼 jīn yú n4 goldfish #条,只 @animal
+旱冰鞋 hàn bīng xié n4 roller skates #双 @sport
+鼓掌 gǔ zhǎng v4 clap, applaud
+心平气和 xīn píng qì hé phrase4 calmly, keeping calm
+橱窗 chú chuāng n4 shop window #个 @shop
+明灯 míng dēng n4 bright lamp; a guiding light #盏
+馒头 mán tou n3 steamed bun #个 @food
+马戏团 mǎ xì tuán n4 circus #个
+播音员 bō yīn yuán n4 announcer #个,位 @people,work
+访谈 fǎng tán n4 interview #个,次
+开通 kāi tōng v4 open (a line, a service)
+知心 zhī xīn adj4 understanding, close (知心热线: an advice line) +
+提议 tí yì n4 proposal; propose #个
+珍贵 zhēn guì adj4 precious, valuable +
+侄女 zhí nǚ n4 niece #个 @family,people
+团结 tuán jié v4 unite; united +
+思考 sī kǎo v4 think (deeply), think it through
+广播剧 guǎng bō jù n4 radio drama #部,个
+漏掉 lòu diào v4 miss, leave out
+茉莉 mò lì n4 jasmine (茉莉花茶: jasmine tea) #朵 @nature
+鱼鳞 yú lín n4 fish scales #片
+针法 zhēn fǎ n4 stitch (knitting) #种
+编织 biān zhī v4 knit, weave
+平针 píng zhēn n4 plain stitch
+活动室 huó dòng shì n4 community room, activity room #个,间 @place
+樟脑丸 zhāng nǎo wán n4 mothball #颗,个
+缝纫机 féng rèn jī n4 sewing machine #台 @home
+棉袄 mián ǎo n4 padded jacket #件 @clothes
+整齐 zhěng qí adj3 neat, tidy, even +
+脑袋 nǎo dai n4 head @body
+老伴 lǎo bàn n4 spouse (of an old couple) #个 @family,people
+泡 pào v4 brew (tea), soak
+凶 xiōng adj4 fierce -
+淡 dàn adj4 faint, light, weak (tea, a color)
+闭 bì v4 close (the eyes, the mouth)
+戳 chuō v4 poke
+灵 líng adj4 sharp (a nose), clever; working (a remedy)
+墨 mò n4 ink (墨汁) #瓶,块 @art
+春联 chūn lián n4 New Year couplets #副,对 @story
+毛笔字 máo bǐ zì n4 brush calligraphy #个 @art
+发抖 fā dǒu v4 shiver, tremble
+撞 zhuàng v4 hit, crash into, bump into
+缺 quē v4 lack, be short of
+窝 wō n4 nest, kennel, den #个 @animal,home
+搭 dā v4 put up, build; take (a bus, a boat)
+案子 àn zi n4 case (a crime, a mystery) #个,件
+狗粮 gǒu liáng n4 dog food @animal,food
+怀里 huái lǐ n4 in your arms (抱在怀里)
+专栏 zhuān lán n4 column (in a newspaper) #个
+版 bǎn n4 edition, page (of a paper) #个
+登 dēng v4 climb; print, publish (in a paper)
+失主 shī zhǔ n4 owner (of a lost thing) #个,位 @people
+失物 shī wù n4 lost property #件
+领取 lǐng qǔ v4 collect, claim
+奖品 jiǎng pǐn n4 prize #个,份
+亲手 qīn shǒu adv4 by hand, personally
+蚊子 wén zi n3 mosquito #只 @animal
+同志 tóng zhì n4 comrade (编辑同志们: dear editors) #个,位 @people
+跤 jiāo n4 a fall (摔了一跤) #-
+窍门 qiào mén n4 trick, knack, tip #个
+蒸 zhēng v4 steam
+出售 chū shòu v4 sell; for sale
+车筐 chē kuāng n4 bike basket #个
+报酬 bào chou n4 pay, reward #份,笔 @money
+蜈蚣 wú gōng n4 centipede #条,只 @animal
+竹竿 zhú gān n4 bamboo pole #根
+灯罩 dēng zhào n4 lampshade #个 @home
+厨艺 chú yì n4 cooking skills @food
+学员 xué yuán n4 student (of a course), trainee #个,名,位 @people,school
+拆 chāi v4 pull down, take apart; open (a letter)
+展开 zhǎn kāi v4 launch, unfold, open up
+记忆 jì yì n3 memory #段,个
+发言 fā yán v4 speak (at a meeting); a speech
+钉 dìng v4 nail (something)
+发愁 fā chóu v4 worry
+粘 zhān v4 stick, glue
+撒 sǎ v4 sprinkle, scatter
+葱 cōng n3 scallion, spring onion #根 @food
+葱花 cōng huā n4 chopped spring onion @food
+合唱团 hé chàng tuán n4 choir #个 @music
+团员 tuán yuán n4 member (of a group) #个,名,位 @people
+礼堂 lǐ táng n4 assembly hall, auditorium #个,座 @place,school
+谱 pǔ n4 sheet music, score #张,本 @music
+两全其美 liǎng quán qí měi phrase4 the best of both worlds, satisfying both sides
+巴士 bā shì n4 bus #辆 @transport
+采纳 cǎi nà v4 adopt (an idea), accept
+欢呼 huān hū v4 cheer
+盼 pàn v4 look forward to, hope for
+运货 yùn huò v4 carry goods, deliver
+实话 shí huà n4 the truth (说实话: to tell the truth)
+唐诗 Táng shī n4 Tang poetry #首 @story
+车库 chē kù n4 garage #个,间 @home,transport
+贝斯 bèi sī n4 bass (guitar) #把 @music
+// (and the words the measure-word checks tripped on: 大叔 read as 大书, 镇长 as 镇 + 长, 薄薄 as 宝宝, 那一刻 as 那一课)
+大叔 dà shū n3 uncle, (a middle-aged) man #个,位 @people
+镇长 zhèn zhǎng n4 town mayor #个,位 @people,town
+薄薄 báo báo adj4 very thin, paper-thin %ng
+那一刻 nà yī kè phrase4 that moment
+演 yǎn v3 act, perform, put on (a show)
+划 huá v3 row (a boat), paddle
+场#ch cháng cl4 (a spell of: rain, snow, an illness) %part
+柳 liǔ n4 willow; Liu (a surname) #棵 @nature
+敲门 qiāo mén v3 knock (at the door)
+扑 pū v4 pounce, throw yourself at
+设 shè v4 set up (a trap), establish
+陷阱 xiàn jǐng n4 trap #个
+面具 miàn jù n4 mask #个,张
+石磨 shí mò n4 millstone #个,盘 @home
+镇子 zhèn zi n4 (small) town #个,座 @town
+阵子 zhèn zi n3 a while, a period of time %ncl @time
+一阵子 yī zhèn zi n4 a while (过一阵子: after a while) %ncl @time
+仨 sā num4 three (casual: 我们仨, the three of us)
+铺 pù n4 shop (铁匠铺: a smithy); bunk (上下铺: bunk beds) #个,家
+该 gāi v3 should; be (someone's) turn (该你了)
+嗓门 sǎng mén n4 voice (大嗓门: a loud voice)
+呱 guā int4 croak (a frog)
+人们 rén men n2 people (in general) %ncl @people
+// (Chapter 5's first lines: the city and the casual words of the register lessons)
+正午城 Zhèng wǔ chéng name3 Meridiana (the city of Chapter 5) @place
+正午 zhèng wǔ n4 noon @time %tn
+哥们 gē men n4 buddy, mate (casual) #个 @people
+咱 zán pron4 we, us (casual: you and I) %p1,pl
+呗 bei part4 (casual: that's just how it is) %sfp
+哈 hā int3 ha (a laugh); hey
+不好意思 bù hǎo yì si phrase2 sorry, excuse me; embarrassed
+// (words the game's lines use that pinyin read as other words with the wrong tone: 去不了 as 去不聊, 盖的 as 改的, 两倍 as 两杯)
+了#liao liǎo v3 (after 得 / 不: manage to; can't: 去不了, 受不了)
+盖 gài v4 build (a house); cover
+样 yàng cl3 kind, sort (两样东西: two things) %part
+挡 dǎng v4 block, keep out
+圈 quān cl4 a lap, a round, a ring (跑三圈, 一圈又一圈) %part
+散 sàn v4 break up, scatter, clear (the fog)
+呼 hū v4 breathe out; call out (呼呼: whoosh, snore)
+缝 féng v4 sew
+屋 wū n3 room, house (进屋) #间
+永 yǒng adv4 forever (the character 永)
+通 tōng v3 go through, be open (路通了)
+叮 dīng int4 ding (a bell)
+荡 dàng v4 swing, sway
+运 yùn v3 carry, transport
+超 chāo adv4 super (超喜欢)
+派 pài v4 send (派来)
+随时 suí shí adv3 at any time
+埋 mái v4 bury
+大雪 dà xuě n4 heavy snow @weather
+愿 yuàn n4 wish (许个愿) #个
+剪纸 jiǎn zhǐ n4 paper cutting @art
+归 guī v4 belong to (归…管)
+区 qū n4 area, district, zone #个 @place
+静 jìng adj4 quiet, still
+货 huò n4 goods, cargo
+落 luò v4 fall, land (落在)
+治 zhì v4 treat, cure
+盯 dīng v4 stare at, keep an eye on
+活 huó v3 live, be alive
+填空 tián kòng v4 fill in the blanks
+嗨 hāi int3 hi; hey
+呜 wū int4 boo-hoo; whoo
+叼 diāo v4 hold in the mouth
+配 pèi v4 match; deserve (配得上)
+烂 làn adj4 rotten; terrible
+马步 mǎ bù n4 horse stance (蹲马步)
+气 qì n3 breath, air; anger (喘口气) %ncl
+赶集 gǎn jí v4 go to the market (on fair day)
+晃 huàng v4 sway, shake
+攒 zǎn v4 save up (money)
+零花钱 líng huā qián n4 pocket money @money
+婶 shěn n4 aunt (秀兰婶) @family,people
+姐 jiě n3 older sister; (after a name) sister @family,people
+清 qīng adj4 clear (分不清: can't tell apart)
+沉 chén v4 sink
+旁 páng n4 side, beside
+身上 shēn shang n3 on you, on your body
+柏树 bǎi shù n4 cypress #棵 @nature
+朗读 lǎng dú v4 read aloud
+朗读会 lǎng dú huì n4 reading (an event where people read aloud) #场,个
 `);
   // @@ (more word chunks go above this line)
 })();

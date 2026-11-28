@@ -197,7 +197,7 @@
     V('i', 'ながら', { form: 'nagara' });
     V('i', '', { form: 'stem' }, 0.6);
     // (〜ず / 〜ずに: without doing, 言わずに; 〜ちゃう / 〜じゃう: the casual 〜てしまう, 帰っちゃう, 読んじゃった)
-    V('zu', 'ず', { neg: true, form: 'zu' }); V('zu', 'ずに', { neg: true, form: 'zuni' });
+    V('zu', 'ず', { neg: true, form: 'zu' }, 1); V('zu', 'ずに', { neg: true, form: 'zuni' }, 1);     // (a written form: みず is 水 before 見ず, みずに 水に)
     [['う', { tense: 'pres' }], ['った', { tense: 'past' }], ['います', { tense: 'pres', polite: true }], ['いました', { tense: 'past', polite: true }], ['って', { form: 'te' }]]
       .forEach(([x, f]) => V('cha', x, Object.assign({ chau: true }, f)));
   }
@@ -602,6 +602,13 @@
         // (kana and kanji must match a form exactly; rōmaji may leave long vowels out or spell them another way, but a
         // form spelled exactly as typed is preferred: «mou» is もう, «mo» is も)
         let key = '', ex = '', exs = '', prev = '', gaps = 0, rom = false, kataAll = true, hira = false, kata = false;
+        const honAt = q0 => {
+          if (q0 >= n) return false;
+          if (X[q0].k === 'han') return X[q0].ch === '様' || (X[q0].ch === '先' && !!X[q0 + 1] && X[q0 + 1].ch === '生');
+          let s = '';
+          for (let q = q0; q < n && q < q0 + 4 && X[q].k === 'kana'; q++) { s += X[q].ch; if (/^(さん|くん|ちゃん|さま|せんせい)$/.test(s)) return true; }
+          return false;
+        };
         // (a number in kanji is one run: 十五枚 is 十五 + 枚, not 十 + 五枚; words don't start in the middle of it)
         const midNum = u.k === 'han' && NUMK[u.ch] !== undefined && i > 0 && X[i - 1].k === 'han' && NUMK[X[i - 1].ch] !== undefined && !u.hard;
         for (let j = i; j < n && !midNum; j++) {
@@ -634,7 +641,13 @@
               // (a loose match costs more; a space the player typed is a word break unless nothing else reads: «wo shimashita»
               // is を しました, not 押しました; katakana read as a word that isn't written in katakana costs a little more)
               // (and a word read across hiragana and katakana is rarely meant: は + カレ is no 計れ)
-              sc.push({ r, c: recCost(r) + (same ? -0.1 : 0.7) + gaps * 3 + (kataAll && !KATA_RE.test(r.s) ? 0.6 : 0) + (hira && kata && !(KATA_RE.test(r.s) && HIRA_RE.test(r.s)) ? 1 : 0) });
+              // (and a name is written as a name: みずの is 水の, not 水野; なお is なお, not ナオ; a name in kanji or katakana typed in
+              //  hiragana costs more)
+              // (unless an honorific follows: ふみたくん is 文田くん; in rōmaji a name is one typed with a capital or an honorific after it:
+              //  «junbi» is 準備, not ジュン + …)
+              // (a place's name isn't: «tokyo ni ikimasu» is 東京)
+              const nameKana = r.e.pos === 'name' && !r.e.tags.includes('place') && (rom ? !u.cap && !u.honNext : (hasHan(r.s) && !hasHan(exs)) || (KATA_RE.test(r.s) && !HIRA_RE.test(r.s) && hira)) && !honAt(j + 1);
+              sc.push({ r, c: recCost(r) + (same ? -0.1 : 0.7) + gaps * 3 + (kataAll && !KATA_RE.test(r.s) ? 0.6 : 0) + (hira && kata && !(KATA_RE.test(r.s) && HIRA_RE.test(r.s)) ? 1 : 0) + (nameKana ? (rom ? 1 : 2) : 0) - (r.e.pos === 'name' && rom && u.cap && !sentStart(i) ? 0.3 : 0) });
             }
             if (sc.length) {
               sc.sort((a, z) => a.c - z.c || a.r.e.n - z.r.e.n);
@@ -704,8 +717,14 @@
         const potOff = t.cands[0].f.pot && t.cands.some(r => r.e.pos === 'v' && !r.f.pot && !r.f.pass) && ((pr && pr.e.pos === 'part' && pr.s === 'を')
           || (t.cands[0].f.form === 'te' && nr && (nr.e.id === 'ja:ください' || /^(くれ|くださ|もら|いただ|おく|おき|しま|み)/.test(nr.s))));
         if (potOff) { pickR(t, r => r.e.pos === 'v' && !r.f.pot && !r.f.pass); continue; }
-        // and after が, the potential is the likely one: 車が入れない is "cars can't get in" (入る), not "don't put in" (入れる)
+        // and after が, the potential is the likely one: 車が入れない is "cars can't get in" (入る), not "don't put in" (入れる);
+        // with a を earlier in the clause (and no が), another verb's plain form is: 電話を一本かけました is 掛けました, not 書けました
         if (pr && pr.e.pos === 'part' && pr.s === 'が' && t.cands[0].e.pos === 'v' && !t.cands[0].f.pot && t.cands.some(r => r.e.pos === 'v' && r.f.pot && r.e !== t.cands[0].e)) { pickR(t, r => r.e.pos === 'v' && r.f.pot); continue; }
+        if (t.cands[0].f.pot && t.cands.some(r => r.e.pos === 'v' && !r.f.pot && !r.f.pass && r.e !== t.cands[0].e)) {
+          let wo = false;
+          for (let q = k - 1; q >= 0; q--) { const x = T[q], r0 = R0(x); if (!x || x.t === 'punct' || (r0 && r0.e.pos === 'part' && r0.s === 'が')) break; if (r0 && r0.e.pos === 'part' && r0.s === 'を') { wo = true; break; } }
+          if (wo) { pickR(t, r => r.e.pos === 'v' && !r.f.pot && !r.f.pass && r.e !== t.cands[0].e); continue; }
+        }
         // a verb's dictionary form right before です / でした, when the same kana is also a noun, is the noun: «sanmon no toku desu» is
         // 得です, not 解くです (a learner's «taberu desu» has no noun to be, so it's still caught)
         if (t.cands[0].e.pos === 'v' && t.cands[0].f.form === 'dict' && nr && nr.e.fl.cop && /^(です|でした)$/.test(nr.s) && t.cands.some(r => r.e.pos === 'n')) { pickR(t, r => r.e.pos === 'n'); continue; }
@@ -1018,7 +1037,8 @@
         const subPast = q0 => sen.slice(q0 + 1, mainQ).some(k => isPred(ws[k]) && ws[k].f.tense === 'past');
         // (a time word is the verb's time only when it stands alone or takes は / に / も: 来月の試験, 昨日と同じ, 昨日が見える,
         //  去年の倍, 明日では, 来年から, or 明日… said and left hanging, are about something else)
-        const asTime = q0 => !isPart(at(q0 + 1), 'の', 'と', 'が', 'を', 'で', 'では', 'から', 'まで') && !(ws[sen[q0] + 1] && ws[sen[q0] + 1].punct && /[…‥]/.test(ws[sen[q0] + 1].t));
+        // (and より compares: 去年より三つも多いです)
+        const asTime = q0 => !isPart(at(q0 + 1), 'の', 'と', 'が', 'を', 'で', 'では', 'から', 'まで', 'より') && !(ws[sen[q0] + 1] && ws[sen[q0] + 1].punct && /[…‥]/.test(ws[sen[q0] + 1].t));
         if (main && tp >= 0 && tp < mainQ && asTime(tp) && tf < 0 && !subPast(tp) && main.f.tense === 'pres' && !main.f.cond && !main.f.mood && !has(main, 'つもり')) {
           const fx = reform(main, Object.assign({}, main.f, { tense: 'past' }));
           if (fx) add('tense.past', 'major', sen[mainQ], sen[mainQ], fx, `After ${Q(S(sen[tp]))}, use the past: ${Q(fx)}.`);
@@ -2157,7 +2177,7 @@
 傘 かさ n1 umbrella #本 @weather
 鍵 かぎ n2 key #本,個 @home
 時計 とけい n1 clock, watch #台,個 =w.clock @home
-電話 でんわ n1 telephone #台 @tech
+電話 でんわ n1 telephone; a phone call (電話を一本: one call) #台,本,通 @tech
 携帯 けいたい n2 cell phone #台 @tech
 スマホ n2 smartphone #台 @tech
 パソコン n1 computer #台 @tech
@@ -4405,6 +4425,93 @@
 おしまい n3 the end, over (おしまいだ: that's it)
 によると phrase3 according to
 だそう phrase3 they say, I hear (…だそうです)
+`);
+  W.push(`
+// ---- the radio kit's, the detective serial's and the paper's words (A1's «read: kit / serial / paper ja» lines)
+七夕 たなばた n3 Tanabata, the star festival (7 July) @time
+梅 うめ n3 plum, Japanese apricot (梅雨: the rainy season) @nature,food
+折り紙 おりがみ n3 origami, folded paper @hobby,art
+恐竜 きょうりゅう n3 dinosaur #匹,頭 @animal
+交換会 こうかんかい n4 swap meet @town
+雪合戦 ゆきがっせん n4 snowball fight @sport
+マラソン n3 marathon (読書マラソン: a reading marathon) @sport
+歩行者天国 ほこうしゃてんごく n4 car-free street (a street closed to cars on set days) @town %place
+コーナー n4 corner; a segment (of a show) @tech
+提案する ていあんする vs4 propose, suggest; a proposal %vt
+げた n4 geta, wooden sandals (下駄) #足 @clothes
+銭湯 せんとう n4 public bathhouse #軒 @town %place
+つばき n4 camellia (椿; つばきのあぶら: camellia hair oil) @nature
+床屋 とこや n3 barber, barbershop #軒 @town,people %place
+クイズ n2 quiz @hobby
+ごま n3 sesame (胡麻) @food
+めい n3 niece (姪) #人 @family,people
+寒がり さむがり n4 someone who feels the cold @people
+話しかける はなしかける vi3 talk to, speak to
+仕掛ける しかける vi4 set (a trap); start %vt
+順番 じゅんばん n3 turn, order
+巡礼 じゅんれい n4 pilgrimage
+サイズ n3 size
+立てる たてる vi2 stand (something) up; make (a plan) %vt
+あいづち n4 little words that show you're listening (うん, へえ, なるほど)
+多め おおめ n4 a bit more (than usual)
+少なめ すくなめ n4 a bit less (than usual)
+二十日 はつか n3 the twentieth (of a month); twenty days @time %tni
+中#chu ちゅう n3 during, in the middle of (準備中, 仕事中, 電話中) @time
+// (Chapter 5's first lines: the city, its people, and the words of the register lessons)
+メリディアナ name3 Meridiana (the city of Chapter 5) @place
+ヘレン name3 Helen (Meridiana) @people
+マーティン name3 Martin (Meridiana) @people
+オリー name3 Olly (Meridiana) @people
+事務室 じむしつ n3 office (at a school, a station) @work %place
+ねえ int2 hey, say (casual)
+アナウンス n3 announcement @tech
+// ---- the people of the radio kit, the serial and the paper (names: a name is read as one, not as 北 + 村 or 水 + の)
+ダイキチ name3 Daikichi (the quiz show's host) @people
+マロ name3 Maro (a little white dog) @animal
+キウイ name3 Kiwi (a parrot) @animal
+ゴマ name3 Goma (a hen) @animal
+タロウ name3 Tarō (a dog) @animal
+イツキ name3 Itsuki (a boy, 8) @people
+カエデ name3 Kaede (a girl, 9) @people
+トモキ name3 Tomoki (a boy, 12) @people
+ナオ name3 Nao (a girl, 11) @people
+アユミ name3 Ayumi (a caller on the advice line) @people
+ジュン name3 Jun (a caller on the advice line) @people
+リナ name3 Rina (a caller on the advice line) @people
+コタロウ name3 Kotarō (Fudeko's grandson, 10) @people
+アカネ name3 Akane (a schoolgirl, 11) @people
+ハツ name3 Hatsu (a letter writer, 82) @people
+ヨネ name3 Yone (the columnist) @people
+ユウナ name3 Yūna (a girl, 5) @people
+ミナミ name3 Minami (a girl, 12) @people
+北村 きたむら name3 Kitamura (a pet owner, Alba) @people
+西川 にしかわ name3 Nishikawa (a pet owner, Molinar) @people
+早苗 さなえ name3 Sanae (the mail carrier) @people
+大吾 だいご name3 Daigo (the carpenter, Molinar) @people
+汐里 しおり name3 Shiori (the fisher, Remanso) @people
+吉川 よしかわ name3 Yoshikawa (a caller, Molinar) @people
+谷口 たにぐち name3 Taniguchi (an organizer) @people
+木下 きのした name3 Kinoshita (a teacher, an organizer) @people
+大森 おおもり name3 Ōmori (an organizer) @people
+内田 うちだ name3 Uchida (a caller in the debate) @people
+前田 まえだ name3 Maeda (a caller in the debate) @people
+平野 ひらの name3 Hirano (a caller in the debate) @people
+坂本 さかもと name3 Sakamoto (a caller in the debate) @people
+菊江 きくえ name3 Kikue (a guest on the memories show, 87) @people
+徳三 とくぞう name3 Tokuzō (a guest on the memories show, 92) @people
+筆子 ふでこ name3 Fudeko (the serial's detective) @people
+花井 はない name3 Hanai (the florist) @people
+湯川 ゆかわ name3 Yukawa (the bathhouse keeper) @people
+山中 やまなか name3 Yamanaka (the barber) @people
+水野 みずの name3 Mizuno (the paper's reporter) @people
+美里 みさと name3 Misato (the paper's reporter) @people
+星野 ほしの name3 Hoshino (a retired teacher) @people
+村上 むらかみ name3 Murakami (a letter writer) @people
+岡本 おかもと name3 Okamoto (the columnist) @people
+丸山 まるやま name3 Maruyama (the origami teacher) @people
+島田 しまだ name3 Shimada (the vegetable seller) @people
+栄吉 えいきち name3 Eikichi (a man, 90) @people
+浦島太郎 うらしまたろう name3 Urashima Tarō (the folk tale) @story
 `);
   // @@ (more word chunks go above this line)
 })();

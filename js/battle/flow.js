@@ -45,8 +45,8 @@
   // [masculine, feminine]: «está dormido» for a hushling, «está dormida» for a moth
   const STATE_LBL = { es: { asleep: ['está dormido', 'está dormida'], angry: ['está enojado', 'está enojada'] }, pt: { asleep: ['tá dormindo', 'tá dormindo'], angry: ['tá bravo', 'tá brava'] }, de: { asleep: ['schläft', 'schläft'], angry: ['wütend', 'wütend'] } };
   const WEAK_NEXT = { tail: 'head', head: 'shell', shell: 'tail' };
-  // kinds whose name a fight teaches the first time you meet one
-  const NEW_KINDS = ['moth', 'beetle', 'armadillo', 'frog', 'dummy', 'kernel', 'popcorn', 'colonel', 'bat', 'bee', 'snowball', 'crab', 'worm'];
+  // kinds whose name a fight teaches the first time you meet one (_.NEW_KINDS: a region adds its own, js/ch5/mer_noise.js)
+  const NEW_KINDS = _.NEW_KINDS = ['moth', 'beetle', 'armadillo', 'frog', 'dummy', 'kernel', 'popcorn', 'colonel', 'bat', 'bee', 'snowball', 'crab', 'worm'];
   // kinds that swap places after every foes' turn (the frogs on their lily pads, popcorn on the hot floor)
   const HOPPERS = ['frog', 'popcorn'];
   const CORN = ['kernel', 'popcorn', 'colonel'];

@@ -155,6 +155,7 @@ const MINIMAP = (() => {
   // ---------------------------------------------------------------- which area you're in (the name on the tab)
   function areaAt(x, z) {
     const L = WORLD.L;
+    { const rm = ownRoom(); if (rm && rm.areaAt) { const a = rm.areaAt(x, z); if (a) return a; } }     // (a room with a map of its own: Meridiana, js/ch5/mer_city.js)
     if (typeof PAST !== 'undefined' && PAST.areaAt) { const a = PAST.areaAt(x, z); if (a) return a; }     // (the Past: Alba and the Old Quarter, long ago)
     if (typeof FUTURE !== 'undefined' && FUTURE.areaAt) { const a = FUTURE.areaAt(x, z); if (a) return a; }     // (the Future: Alba tomorrow)
     if (typeof TIME !== 'undefined' && TIME.areaAt) { const a = TIME.areaAt(x, z); if (a) return a; }     // (another region's Past or Future, time.js)
@@ -820,6 +821,40 @@ body.on-title #minimap, body.in-battle #minimap { display: none !important; }
     return (doors = out);
   }
 
+  // a room with a map of its own (Meridiana, js/ch5/mer_city.js: each district's picture): room.ownMap() → { cv, X0, Z0, K, bg } or
+  // null; room.mapMarks(dpr) → [{ x, z, img }]; room.mapDots() → [{ x, z, kind: 'folk' | 'story' | 'foe', alert }]
+  const ownRoom = () => { const rm = G && typeof G.indoorMod === 'function' ? G.indoorMod() : null; return rm && typeof rm.ownMap === 'function' && rm.ownMap() ? rm : null; };
+  function drawOwn(c, O, rm, v) {
+    const { vx, vz, yaw, th, cs, sn, t, dpr, Y, M } = v, K0 = O.K || K;
+    c.fillStyle = O.bg || '#e9dcc4'; c.fillRect(0, 0, MW, MH);
+    c.save(); c.translate(OX, OY); c.rotate(th); c.scale(SCALE / K0, SCALE / K0); c.translate(-(vx - O.X0) * K0, -(vz - O.Z0) * K0); c.drawImage(O.cv, 0, 0); c.restore();
+    const P = (x, z) => { const dx = x - vx, dz = z - vz; return [OX + (dx * cs - dz * sn) * SCALE, OY + (dx * sn + dz * cs) * SCALE]; };
+    const onCard = (x, y, m = 4) => x > -m && x < MW + m && y > -m && y < MH + m;
+    const put = (img, x, y) => { const s = img.width / dpr; c.drawImage(img, x - s / 2, y - s / 2, s, s); };
+    try { for (const m of rm.mapMarks ? rm.mapMarks(dpr) || [] : []) { const [x, y] = P(m.x, m.z); if (onCard(x, y)) put(m.img, x, y); } } catch (e) { warnOnce('own marks', e); }
+    try {
+      const q = (t * 2.2) % 1;
+      for (const d of rm.mapDots ? rm.mapDots() || [] : []) {
+        const [x, y] = P(d.x, d.z); if (!onCard(x, y, 8)) continue;
+        if (d.kind === 'foe') { if (d.alert) { c.strokeStyle = `rgba(229,83,75,${(1 - q).toFixed(2)})`; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 5 + q * 9, 0, TAU); c.stroke(); } put(starSprite(dpr, d.alert ? 5.6 : 4.6, d.alert ? '#ff4d4d' : '#e5534b'), x, y); }
+        else put(dotOf(dpr, d.kind === 'story' ? 'story' : 'folk'), x, y);
+      }
+    } catch (e) { warnOnce('own dots', e); }
+    let marks = []; try { if (typeof QUESTS !== 'undefined' && QUESTS.marks) marks = QUESTS.marks() || []; } catch (e) { warnOnce('QUESTS.marks', e); }
+    const [yx, yy] = P(Y.x, Y.z), off = [];
+    for (let i = marks.length - 1; i >= 0; i--) {
+      const m = marks[i]; if (!m || !isFinite(m.x) || !isFinite(m.z)) continue;
+      const [x, y] = P(m.x, m.z), big = i === 0 || !!m.tracked, side = m.kind === 'side';
+      if (x > 6 && x < MW - 6 && y > 12 && y < MH - 3) pin(c, x, y, t, side, big, Math.hypot(m.x - Y.x, m.z - Y.z) < 4, dpr); else off.push([x, y, side, big]);
+    }
+    if (M && !M.hidden) { let [mx, my] = P(M.x, M.z); const dx = mx - yx, dy = my - yy, d = Math.hypot(dx, dy); if (d < 11.5 && d > 0.5) { mx = yx + dx / d * 11.5; my = yy + dy / d * 11.5; } put(dotOf(dpr, 'mimo'), mx, my); }
+    youBadge(c, yx, yy, yaw - Y.yaw - Math.PI / 2, t, dpr);
+    if (!topShade) { topShade = c.createLinearGradient(0, 0, 0, 10); topShade.addColorStop(0, 'rgba(20,12,36,0.34)'); topShade.addColorStop(1, 'rgba(20,12,36,0)'); }
+    c.fillStyle = topShade; c.fillRect(0, 0, MW, 10);
+    { const [nx, ny] = rimPoint(MW / 2, MH / 2, sn, -cs, 10.5); c.drawImage(nBadge(dpr), nx - 9, ny - 9, 18, 18); }
+    for (const [x, y, side, big] of off) rimArrow(c, yx, yy, x, y, t, side, big);
+  }
+
   function draw(dt) {
     const dpr = Math.min(2, window.devicePixelRatio || 1), bw = Math.round(MW * dpr), bh = Math.round(MH * dpr);
     if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; topShade = null; bgPattern = null; }
@@ -829,6 +864,7 @@ body.on-title #minimap, body.in-battle #minimap { display: none !important; }
     if (!view || Math.abs(view.x - Y.x) + Math.abs(view.z - Y.z) > 30) view = { x: Y.x, z: Y.z };
     else { const k = 1 - Math.exp(-14 * dt); view.x += (Y.x - view.x) * k; view.z += (Y.z - view.z) * k; }
     const vx = view.x, vz = view.z, yaw = G.cam.yaw || 0, th = yaw - Math.PI, cs = Math.cos(th), sn = Math.sin(th);
+    { const rm = ownRoom(), OWN = rm && rm.ownMap(); if (OWN) { drawOwn(c, OWN, rm, { vx, vz, yaw, th, cs, sn, t, dpr, Y, M }); return; } }
     // the land, turned so that up is where the camera looks (only the part the card can reach is drawn); past the
     // map's edge the woods carry on (the same canopy, lined up with the picture's)
     const L0 = land, lx = (vx - L0.X0) * K, lz = (vz - L0.Z0) * K, R = RV * K + 4;
@@ -1008,7 +1044,7 @@ body.on-title #minimap, body.in-battle #minimap { display: none !important; }
     // (the Past and the Future are Alba itself, outdoors: its map shows; so is any world time.js dresses. A dungeon or a room inside one of
     // those worlds comes first in main.js's ROOMS, so indoorMod() names it, and the map hides there like in any other room.)
     const room = typeof G.indoorMod === 'function' ? G.indoorMod() : null;
-    const isWorld = m => (typeof PAST !== 'undefined' && m === PAST) || (typeof FUTURE !== 'undefined' && m === FUTURE) || (typeof TIME !== 'undefined' && m === TIME);
+    const isWorld = m => (typeof PAST !== 'undefined' && m === PAST) || (typeof FUTURE !== 'undefined' && m === FUTURE) || (typeof TIME !== 'undefined' && m === TIME) || !!(m && m.ownMap && m.ownMap());     // (a room with a map of its own: Meridiana)
     const inside = (!!room && !isWorld(room)) || (typeof MILL !== 'undefined' && !!MILL.inside)
       || (typeof INTERIORS !== 'undefined' && !!(INTERIORS && INTERIORS.inside)) || (typeof CORN !== 'undefined' && !!(CORN && CORN.inside));
     const setting = typeof KEYS === 'undefined' || !KEYS.opts || KEYS.opts.minimap !== false;     // (Settings: "Mini-map")

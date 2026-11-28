@@ -1458,9 +1458,15 @@ const INTERLUDE = (() => {
     obj.traverse(o => { if (!o.isMesh || !o.visible) return; const g = o.geometry; n += (g.index ? g.index.count : g.attributes.position.count) / 3 * (g.isInstancedBufferGeometry ? g.instanceCount : 1) * (o.isInstancedMesh ? o.count : 1); });
     return Math.round(n);
   }
+  // a beat from another file (js/ch5/mer_train.js's ride home to Meridiana): make(K) → shots, with K the journey's kit (the station,
+  // the compartment, you, the basket, the camera moves); caps: its captions
+  function addBeat(name, make, caps) {
+    const K = { get CMP() { return CMP; }, get STA() { return STA; }, get KIT() { return KIT; }, HP, seat, poseHero, kitTo, sitting, camAt, dolly, mix3, span, ease, sfx, HERO_AT, BASKET_AT, S };
+    BEATS[name] = () => make(K); if (caps) CAPS[name] = caps;
+  }
   return {
-    play, update, render, buildTower, dispose,
-    beats: Object.keys(BEATS),
+    play, update, render, buildTower, dispose, addBeat,
+    get beats() { return Object.keys(BEATS); },
     isRunning: () => S.running,
     skip: () => end(true),
     _: { S, CAPS, get EXT() { return EXT || (EXT = buildExterior()); }, get INT() { return INT || (INT = buildInterior()); },

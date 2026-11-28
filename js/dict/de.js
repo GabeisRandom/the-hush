@@ -1966,6 +1966,7 @@ Seife|f-n|soap
 Müll|m0|trash
 Kühlschrank|m¨e|refrigerator
 Herd|m-e|stove
+Wasserkocher|m-|kettle (electric)
 Waschmaschine|f-n|washing machine
 Löffel|m-|spoon
 Messer|n-|knife

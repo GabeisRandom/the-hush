@@ -691,6 +691,7 @@ const TALK = (() => {
       if (!ans) return { quit: true };
       help = Math.max(help, ans.help || 0); if (help >= 3) shown = true;
       r = judge(ans.text, tn.want || { any: true }, { band, help, shown, focus: tn.focus, tips: tn.tips });
+      if (typeof tn.check === 'function' && r.understood) { try { tn.check(r, ans.text, ctx); } catch (e) { console.error('[talk] turn check', e); } }     // (a turn's own extra check: Meridiana's register, js/ch5/mer_reg.js)
       you = view.you(ans.text) || {};
       if (r.understood) break;
       misses++;
