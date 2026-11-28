@@ -740,7 +740,7 @@ oi|int|hi
 olá|int|hello
 tchau|int|bye
 obrigado|int:obrigado=m,obrigada=f|thank you
-desculpa|int|sorry|alt:desculpe
+desculpa|int|sorry|alt:desculpe,desculpem
 ok|int|OK|alt:okay
 por favor|phrase|please
 a favor|phrase|in favor (a favor de; ser a favor)
@@ -4178,6 +4178,44 @@ cruzar|v|cross
 palavras cruzadas|phrase|crossword (puzzle)
 @4 people
 astrônomo|m~|astronomer|per
+`);
+  // words the Meridiana chapter used (words_needed.txt, 2026-11-28)
+  LISTS.push(`
+@1
+hum|int|hmm
+ufa|int|phew
+@2
+bonde|m|tram, streetcar
+prazer|m|pleasure (Prazer!: nice to meet you; com prazer: gladly)
+plataforma|f|(train) platform
+recibo|m|receipt
+aviso|m|notice
+saldo|m|balance (of an account, a card)
+@3
+prontinho|a|all set, ready (a diminutive of pronto)
+esquerdo|a|left (do lado esquerdo)
+guichê|m|(service) window, counter
+vibração|f|vibration
+chaleira|f|kettle
+recarregar|v|top up; recharge
+consultar|v|check, look up; consult
+recarga|f|top-up
+ativar|v|activate
+admissão|f|admission
+interno|a|internal
+lanchonete|f|snack bar, café
+palma|f|palm; a clap (bater uma palma)
+reparar|v|notice (nem reparei)
+inaugural|a=|opening, inaugural (aula inaugural)
+doméstico|a|household (utilidades domésticas)
+peixaria|f|fish shop
+auditório|m|auditorium, lecture hall
+empilhar|v|stack, pile up
+estimação|f|(animal de estimação: pet)
+@3 people
+passageiro|m~|passenger|per
+senhorita|f|miss (a young woman, formal)|per
+acompanhante|mf|companion|per
 `);
   const spec = {
     lang: 'pt', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'chamar-se',

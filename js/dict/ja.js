@@ -4459,9 +4459,9 @@
 中#chu ちゅう n3 during, in the middle of (準備中, 仕事中, 電話中) @time
 // (Chapter 5's first lines: the city, its people, and the words of the register lessons)
 メリディアナ name3 Meridiana (the city of Chapter 5) @place
-ヘレン name3 Helen (Meridiana) @people
-マーティン name3 Martin (Meridiana) @people
-オリー name3 Olly (Meridiana) @people
+ヘレン name3 Helen (your mom, in Chapter 5) @people
+マーティン name3 Martin (your dad, in Chapter 5) @people
+オリー name3 Ollie (your younger sibling, 11, in Chapter 5) @people
 事務室 じむしつ n3 office (at a school, a station) @work %place
 ねえ int2 hey, say (casual)
 アナウンス n3 announcement @tech

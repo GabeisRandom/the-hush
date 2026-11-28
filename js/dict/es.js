@@ -4476,6 +4476,90 @@ organizador|m~|organizer|per
 astrónomo|m~|astronomer|per
 afinador|m~|(piano) tuner|per
 `);
+  // words the readers and the Meridiana chapter used (words_needed.txt, 2026-11-28)
+  LISTS.push(`
+@1
+ja|int|ha (laughter)
+uf|int|phew
+uy|int|oh, whoa
+guácala|int|yuck (Mexico)
+@2
+bici|f|bike (short for bicicleta)
+circo|m|circus
+detalle|m|detail (con detalle: in detail)
+invitación|f|invitation
+limpieza|f|cleanup; cleaning
+tranvía|m|tram
+cafetería|f|cafeteria, café
+emergencia|f|emergency (salida de emergencia)
+pasaje|m|(travel) ticket, fare
+aviso|m|notice
+@3
+columpio|m|swing
+frasco|m|jar
+maceta|f|flowerpot
+mancha|f|stain, spot (la mancha: the game of tag)
+pino|m|pine tree
+rincón|m|corner, nook
+toldo|m|awning
+topo|m|mole (animal)
+atar|v|tie
+tapar|v|cover
+pisar|v|step on
+inaugurar|v|open, inaugurate
+estupendo|a|wonderful
+perfectamente|adv|perfectly
+pendiente|a=|pending (estar pendiente de: keep an eye on)
+empapado|a|soaked
+generosidad|f|generosity
+gracia|f|grace; humor (tener gracia: be funny)|skip:gracias
+postura|f|position, stance
+matrimonio|m|married couple; marriage (pedir matrimonio: propose)
+maratón|m|marathon
+lotería|f|lotería (the picture-card game); lottery
+fortuna|f|fortune (la rueda de la fortuna: the Ferris wheel)
+peluche|m|stuffed toy (de peluche)
+escaparate|m|shop window
+arco|m|arch; bow
+breve|a=|brief (en breve: shortly)
+izquierdo|a|left (del lado izquierdo)
+ventanilla|f|(service) window, counter
+vibración|f|vibration
+plancha|f|(clothes) iron
+tetera|f|kettle; teapot
+recargar|v|top up; recharge
+consultar|v|check, look up; consult
+saldo|m|balance (of an account, a card)
+recarga|f|top-up
+exitoso|a|successful
+abono|m|pass, season ticket (abono mensual)
+activar|v|activate
+admisión|f|admission
+certificado|m|certificate (certificado de estudios: school transcript)
+estudios|mpl|studies, schooling
+interno|a|internal
+báscula|f|(weighing) scale
+disculpar|v|excuse (disculpen: ustedes)
+complacer|v.zc|please (nos complace informarle: we are pleased to inform you)
+rogar|v.ue|ask, beg (le rogamos traer: we ask you to bring)
+@4
+anécdota|f|anecdote, funny story
+asomarse|v|look out, peek (me asomo)
+barda|f|wall, fence (Mexico)
+lujo|m|luxury (con lujo de detalles: in great detail)
+reproche|m|reproach
+trueque|m|barter, swap
+@3 people
+campesino|m~|farmer, country person|per
+ganador|m~|winner|per
+heladero|m~|ice-cream seller|per work
+quesero|m~|cheesemaker|per work
+pasajero|m~|passenger|per
+representante|mf|representative|per
+rival|mf|rival, opponent|per
+profe|mf|teacher, prof (casual)|per
+acompañante|mf|companion|per
+`);
   const spec = {
     lang: 'es', lists: LISTS, entry, forms, expand, prior, score, callVerb: 'llamarse',
     context: (W, P) => ROM.context(W, P, R),

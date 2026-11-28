@@ -2257,7 +2257,7 @@ süß|a|sweet; cute
 salzig|a|salty
 scharf|a¨|spicy; sharp
 bitter|a|bitter
-frisch|a|fresh
+frisch|a|fresh|sup:frischest
 modern|a|modern
 berühmt|a|famous
 beliebt|a|popular
@@ -4633,6 +4633,65 @@ Kummerkasten|m¨|advice column
 verarzten|v|patch up
 Sternegucker|m-|stargazer|per f:Sterneguckerin
 Befürworter|m-|supporter|per f:Befürworterin
+`);
+  // words the Meridiana chapter used (words_needed.txt, 2026-11-28)
+  LISTS.push(`
+@1
+hey|int|hey
+puh|int|phew
+@2
+Linie|f-n|line (tram, bus)
+Neuigkeit|f-en|(a piece of) news
+Hitze|f0|heat
+Professor|m:Professoren|professor|per f:Professorin
+erledigen|v|take care of, finish (Alles erledigt)
+beachten|v|mind, pay attention to
+bewegen|v|move (sich bewegen)
+Erklärung|f-en|explanation
+Mango|f-s|mango
+Dinger|pl|things (colloquial plural of Ding)
+@3
+Notausgang|m¨e|emergency exit
+Anschluss|m¨e|connection (train, tram)
+Einschreibung|f-en|enrollment
+Studierendensekretariat|n-e|student records office
+Schall|m0|sound
+Schwingung|f-en|vibration
+Mixer|m-|blender
+Bügeleisen|n-|(clothes) iron
+Fahrkartenautomat|m-en|ticket machine|wk
+Guthaben|n-|balance, credit
+Aufladung|f-en|top-up
+Schulzeugnis|n:Schulzeugnisse|school transcript
+Cafeteria|f-s|cafeteria
+Geschrei|n0|shouting, yelling
+Waschsalon|m-s|laundromat
+Selbstbedienung|f0|self-service
+Naturwissenschaft|f-en|(natural) science
+Freilichtbühne|f-n|open-air theater
+Reagenzglas|n¨er|test tube
+Aushang|m¨e|notice (on a board)
+Vorsingen|n-|(singing) audition
+Haushaltswaren|pl|household goods
+Papaya|f-s|papaya
+Öffnungszeiten|pl|opening hours
+Betreff|m-e|subject (of a letter)
+Zulassungsbescheid|m-e|letter of admission
+krass|a|wow, crazy (slang)|noCmp
+geehrt|a|dear, honored (Sehr geehrte Fahrgäste)|noCmp
+liebevoll|a|loving, kindly
+erfolgreich|a|successful
+naturwissenschaftlich|a|(natural) science, scientific|noCmp
+heraus+bringen|v|get out (a word), utter
+auf+laden|v|top up; load
+ab+fragen|v|check, query
+aktivieren|v|activate
+zu+lassen|v|admit
+erfolgen|v|take place
+verschicken|v|send off
+auf+rufen|v|call (a number, a name)
+durcheinander+reden|v|talk all at once
+stapeln|v|stack
 `);
   const spec = {
     lang: 'de', lists: LISTS, entry, forms, expand: expandAll, prior, score, capNouns: true, callVerb: 'heißen',

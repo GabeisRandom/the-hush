@@ -2810,6 +2810,7 @@
 但丁 Dàn dīng name2 Dante @hush
 坡坡 Pō po name2 Poe @hush
 奥罗拉 Ào luó lā name2 Aurora @hush
+奥利 Ào lì name3 Ollie (your younger sibling, 11, in Chapter 5) @people
 坎德 Kǎn dé name2 Cande @hush
 芙洛拉 Fú luò lā name3 Flora @hush
 梅丽莎 Méi lì shā name3 Melisa @hush
